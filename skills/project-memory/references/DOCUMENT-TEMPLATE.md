@@ -27,6 +27,7 @@ Use this template for any `docs/feature/*.md` or `docs/adr/*.md` file that is no
 ## FOLDER STRUCTURE
 [Show only the files and folders directly relevant to this module. Use aligned comments to explain the business role of each entry.]
 <folder_structure>
+```
 src/module-name/
 ├── domain/
 │   ├── business-entity     # Core logic and invariants
@@ -35,6 +36,7 @@ src/module-name/
 │   └── business-flow       # Orchestration and use cases
 └── infrastructure/
     └── external-adapter    # Persistence or external integrations
+```
 </folder_structure>
 
 ## [MAIN CONCEPTS / COMPONENTS]
@@ -85,6 +87,8 @@ optimized_code()
 </code_tip>
 
 ## REFERENCES
+[RULE: Only reference documents located in `./docs/adr/` or `./docs/feature/`. No other folders are permitted. Always validate that referenced files exist in one of these directories before finalizing the document.]
+
 - [**ARCHITECTURE.md**](../adr/ARCHITECTURE.md or ./ARCHITECTURE.md): [One-line description of the relationship]
 - [**TESTS.md**](../adr/TESTS.md or ./TESTS.md): [One-line description of the relationship]
 ```

@@ -1,0 +1,54 @@
+{
+  "name": "@romabeckman/hrns",
+  "version": "0.3.2",
+  "description": "CLI and SDK for harness-kit autonomous TDD orchestration",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/romabeckman/harness-kit.git",
+    "directory": "sdk"
+  },
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "hrns": "dist/cli/run.js",
+    "harness-kit": "dist/cli/run.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node -e \"const fs=require('fs');const f='dist/cli/run.js';const c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!/usr/bin/env node')){fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);fs.chmodSync(f,'755')}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@cursor/sdk": "^1.0.26",
+    "@github/copilot-sdk": "^1.0.8",
+    "@inquirer/prompts": "^8.5.2",
+    "@vitest/coverage-v8": "^4.1.10",
+    "cross-spawn": "^7.0.6"
+  },
+  "overrides": {
+    "undici": "^6.27.0"
+  },
+  "allowScripts": {
+    "koffi@3.1.4": true
+  }
+}

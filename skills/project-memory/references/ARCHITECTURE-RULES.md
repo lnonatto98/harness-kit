@@ -61,6 +61,7 @@ REQUIRED: Use the exact structure below as literal output when generating or upd
 ## FOLDER STRUCTURE
 [Directory tree from Structure Analysis. Show the most important structural folders. Use aligned comments to explain the purpose of each. Do not list every file — focus on the root structure of features/domains.]
 <folder_structure>
+```
 [project_root]/
 ├── [config_folder]/              # [Purpose, e.g., Environment configuration]
 ├── [features_folder]/            # [Purpose, e.g., Business domain modules]
@@ -68,6 +69,7 @@ REQUIRED: Use the exact structure below as literal output when generating or upd
 │       ├── [layer_1]/            # [Layer responsibility within this domain]
 │       └── [layer_2]/            # [Layer responsibility within this domain]
 └── [shared_folder]/              # [Purpose, e.g., Generic utils and helpers]
+```
 </folder_structure>
 
 ## LAYERS
@@ -97,6 +99,8 @@ REQUIRED: Use the exact structure below as literal output when generating or upd
 | [Name]                       | [Use]   | [How it connects]                   |
 
 ## REFERENCES
+[RULE: Only reference documents located in `./docs/adr/` or `./docs/feature/`. No other folders are permitted. Always validate that referenced files exist in one of these directories before finalizing the document.]
+
 - [**README.md**](../README.md): Main documentation index.
 - [**TESTS.md**](./TESTS.md): Testing strategies and commands.
 ```
