@@ -27,7 +27,16 @@ IF invoked directly by human:
 
 ## Project Context — Read Before Starting Any Flow
 
-### Mandatory documents (always):
+### Fast-path Orientation (check first):
+
+| Document | Purpose |
+|---|---|
+| `docs/.digest.md` | Executive summary of architecture pattern, layers, test framework, run commands, coverage thresholds |
+| `docs/.graph.json` | Complete relation graph index for 1-hop document lookup and dependency traversal |
+
+*Note: If `docs/.digest.md` is present and provides complete stack/test commands, proceed directly. Fall back to reading full baseline documents below if `.digest.md` is missing or deeper technical context is required.*
+
+### Baseline documents (fallback / deep-dive):
 
 | Document | Purpose |
 |---|---|
@@ -44,9 +53,23 @@ IF invoked directly by human:
 | `docs/specs/${domain}/REWORK-LOG.md` | Present only on retry — findings from previous validation to address |
 
 ### Optional documents:
-Read on-demand as indicated in `README.md` (API specs, deployment, configuration, etc.).
+Read on-demand as indicated in `README.md` or `.graph.json` (API specs, deployment, configuration, etc.).
 
 </context>
+
+---
+
+<retry_fast_path>
+
+## RETRY FAST-PATH (when REWORK-LOG.md exists)
+
+REQUIRED: When `docs/specs/${domain}/REWORK-LOG.md` is present, apply these optimizations:
+1. Read `REWORK-LOG.md` FIRST — extract all findings before any other action
+2. Prioritize Step 1 (RED) — write NEW failing tests for each finding immediately
+3. SKIP Step 5 (Update Documentation) until final validation passes
+4. SKIP Step 6 (Machine-Readable Output) until all tests pass — regenerate only at the end
+
+</retry_fast_path>
 
 ---
 
@@ -160,7 +183,7 @@ In the case of AUTONOMOUS, save the structured JSON in `docs/specs/${domain}/TDD
 ## Rules of Conduct
 
 **✅ Do:**
-- Read the 3 mandatory docs before starting (`README.md`, `ARCHITECTURE.md`, `TESTS.md`)
+- Read `docs/.digest.md` and `docs/.graph.json` first if present; fallback to full baseline docs (`README.md`, `ARCHITECTURE.md`, `TESTS.md`) if missing or deeper context required
 - Invoke `test-driven-development` before writing any production code
 - Run tests after every change
 - Fix production code — never alter correct tests to force passing
@@ -168,7 +191,7 @@ In the case of AUTONOMOUS, save the structured JSON in `docs/specs/${domain}/TDD
 - Invoke `project-memory` for new or changes in the project
 
 **❌ Don't:**
-- Skip mandatory docs in `docs/adr/`
+- Skip mandatory orientation context or baseline docs in `docs/adr/`
 - Write production code before having failing, verified tests
 - Assume language, framework, or architecture without consulting docs
 - Run package installation commands automatically — always instruct the user

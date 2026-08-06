@@ -11,7 +11,7 @@ Defines strict rules for generating and maintaining `docs/README.md`.
 | Field | Value |
 |---|---|
 | Target file | `docs/README.md` (root of the `docs/` folder) |
-| Agent action | Generate or overwrite `docs/README.md` using the MANDATORY TEMPLATE exactly as specified. Replace every placeholder — **never leave placeholder literals in the final file.** |
+| Agent action | Generate or overwrite `docs/README.md` using the MANDATORY TEMPLATE exactly as specified. |
 | When to update | REQUIRED: Every time a document is added, removed, or renamed in `docs/`, update `docs/README.md` in the same operation. |
 
 ---
@@ -44,10 +44,10 @@ REQUIRED: Reject any attempt to include the following content in this file.
    - `Reading`: **`Mandatory`** (bold) for structural and architectural documents; `Optional` for specific guides.
 
 4. **Recommended reading order:** Numbered list suggesting logical sequence:
-   - Foundational documents first (Architecture, Organization).
-   - Rules/domain documents next.
-   - Process/test documents after.
-   - Auxiliary tools and guides last.
+   - **.digest.md** first for fast AI agent orientation (stack, commands, constraints).
+   - **.graph.json** second for macro document topology and 1-hop relation routing.
+   - Foundational baseline ADRs next (Architecture, Tests).
+   - Specific domain/feature documents after.
 
 5. **Index updates:** REQUIRED: Add every new `docs/adr/` or `docs/feature/` document to the table. PROHIBITED: Removing entries unless the corresponding file has been deleted.
 
@@ -60,21 +60,24 @@ REQUIRED: Use the exact structure below as literal output when generating or upd
 ```markdown
 # Project Documentation
 
-Index of project technical documentation for **[Project/Service Name]**. Use the links below to navigate the available documents.
+Index of project technical documentation for **[Project/Service Name]**. Use the links below to navigate the available documents and graph map topology.
 
 ## Documentation Index
-**RULE:** Only reference documents located in `./docs/adr/` or `./docs/feature/`. No other folders are permitted. Always validate that referenced files exist in one of these directories before finalizing the document.
 
 | Document | Description | Reading |
 |----------|-------------|----------|
+| [**.digest.md**](./.digest.md) | Fast-path machine-readable orientation digest (stack, test commands, rules). | **Mandatory** |
+| [**.graph.json**](./.graph.json) | Macro relation graph index for agent topology navigation and 1-hop routing. | **Mandatory** |
 | [**ARCHITECTURE.md**](./adr/ARCHITECTURE.md) | Architecture, folder organization, and code patterns for the project. | **Mandatory** |
 | [**TESTS.md**](./adr/TESTS.md) | Testing strategies, patterns, and execution commands. | **Mandatory** |
 
 ## Recommended Reading Order
 
-1. **adr/ARCHITECTURE.md** — technical foundation and project organization.
-2. **adr/TESTS.md** — code validation and quality.
-3. Additional documents in adr/ or feature/ folders as needed for the task.
+1. **.digest.md** — fast AI orientation (architecture pattern, stack, test commands).
+2. **.graph.json** — macro relation graph index for 1-hop document lookup.
+3. **adr/ARCHITECTURE.md** — detailed technical foundation and code patterns.
+4. **adr/TESTS.md** — test strategies, coverage thresholds, and Vitest rules.
+5. Additional documents in adr/ or feature/ folders as needed for the task.
 ```
 
 > **Note:** The template above shows the minimum expected documents. Add new rows to the table and the reading list to reflect the actual documents present in `docs/`.

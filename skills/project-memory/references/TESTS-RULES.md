@@ -35,6 +35,17 @@ PROHIBITED: Inventing commands or coverage thresholds not found in the repositor
 REQUIRED: Use the exact structure below as literal output when generating or updating `docs/adr/TESTS.md`. Replace every `[placeholder]` with actual project content — **never leave placeholder literals in the final file.**
 
 ```markdown
+---
+doc_type: adr
+domain: testing
+stack: [list of testing frameworks]
+node_id: "adr:tests"
+tags: [testing, unit-tests, e2e-tests, coverage]
+edges:
+  - relation: references
+    target: "adr:architecture"
+updated: YYYY-MM-DD
+---
 # Testing Protocol
 
 ## OVERVIEW
@@ -74,6 +85,13 @@ FORBIDDEN: [e.g., Tests that depend on execution order]
 ## TROUBLESHOOTING
 - **Flaky tests:** [How to identify and report]
 - **Debug mode:** [Command or flag to run tests with verbose/debug output]
+
+<!-- DOCUMENT MAP: omitted — this baseline ADR has exactly 1 edge. The ## REFERENCES section below carries the relation. Include ## DOCUMENT MAP with Mermaid graph TD only when 2+ edges exist. -->
+
+## REFERENCES
+
+- [**README.md**](../README.md): Main documentation index.
+- [**ARCHITECTURE.md**](./ARCHITECTURE.md): System architecture and patterns.
 ```
 
 ---
@@ -82,6 +100,3 @@ FORBIDDEN: [e.g., Tests that depend on execution order]
 
 - REQUIRED: Verify every command against the project's actual configuration (e.g., `package.json` scripts, `Makefile`) before writing.
 - REQUIRED: Coverage levels must reflect actual CI gates — not aspirational values.
-- PROHIBITED: Filler text — remove any sentence starting with "This section describes…" or "Below we can see…".
-- PROHIBITED: Placeholder literals in the final file.
-- REQUIRED: UPPERCASE section titles (`## COMMANDS`, `## TOOLING`, etc.) for reliable LLM context extraction.

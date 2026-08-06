@@ -8,9 +8,6 @@ Use this template for any `docs/feature/*.md` or `docs/adr/*.md` file that is no
 
 - REQUIRED: One document covers exactly **one** business domain, module, or architectural layer.
 - PROHIBITED: Mixing unrelated topics in a single file.
-- PROHIBITED: Leaving placeholder literals (`[like this]`) in the final file.
-- PROHIBITED: Emoji in section titles or body text.
-- REQUIRED: UPPERCASE section titles for reliable LLM context extraction.
 - REQUIRED: Cross-reference section at the end listing related `docs/` files.
 
 ---
@@ -18,8 +15,34 @@ Use this template for any `docs/feature/*.md` or `docs/adr/*.md` file that is no
 ## MANDATORY TEMPLATE
 
 ```markdown
+---
+doc_type: [feature or adr]
+domain: [domain name]
+stack: [list of relevant technologies]
+node_id: "[type]:[slug]"
+tags: [tag1, tag2]
+edges:
+  - relation: [implements | depends_on | tested_by | references | child_of]
+    target: "[target_node_id]"
+updated: YYYY-MM-DD
+---
 # [Document Title]
 [One sentence stating the purpose of this document.]
+
+```graph
+{
+  "node_id": "[type]:[slug]",
+  "domain": "[domain name]",
+  "implements": ["adr:architecture"],
+  "tested_by": ["adr:tests"],
+  "code_files": [
+    "relative/path/to/source1.ts"
+  ],
+  "test_files": [
+    "relative/path/to/test1.test.ts"
+  ]
+}
+```
 
 ## OVERVIEW
 [Context limited to 2–3 sentences. State the main concept in the context of the project stack. No introductory filler.]
@@ -86,8 +109,19 @@ FORBIDDEN: [Anti-pattern] — [brief justification]
 optimized_code()
 </code_tip>
 
+<!-- Include ## DOCUMENT MAP with Mermaid graph TD ONLY when the document has 2+ edges.
+     For single-edge documents, omit this section — ## REFERENCES already carries the relation. -->
+## DOCUMENT MAP
+
+```mermaid
+graph TD
+    THIS["[Document Title]"] -->|[relation]| REL1["[Related Doc Title]"]
+    THIS -->|[relation]| REL2["[Related Doc Title]"]
+    click REL1 "[relative/path/to/doc.md]"
+    click REL2 "[relative/path/to/doc.md]"
+```
+
 ## REFERENCES
-[RULE: Only reference documents located in `./docs/adr/` or `./docs/feature/`. No other folders are permitted. Always validate that referenced files exist in one of these directories before finalizing the document.]
 
 - [**ARCHITECTURE.md**](../adr/ARCHITECTURE.md or ./ARCHITECTURE.md): [One-line description of the relationship]
 - [**TESTS.md**](../adr/TESTS.md or ./TESTS.md): [One-line description of the relationship]
