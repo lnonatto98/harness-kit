@@ -37,7 +37,12 @@ describe('TokenLedger', () => {
       const entry = JSON.parse(lines[0])
       expect(entry.skill).toBe('tdd-orchestrator')
       expect(entry.agent).toBe('developer-backend')
-      expect(entry.inputTokens).toBe(100)
+      expect(entry.tokenUsage.inputTokens).toBe(100)
+      expect(entry).not.toHaveProperty('inputTokens')
+      expect(entry).not.toHaveProperty('outputTokens')
+      expect(entry).not.toHaveProperty('cacheCreationTokens')
+      expect(entry).not.toHaveProperty('cacheReadTokens')
+      expect(entry).not.toHaveProperty('costUsd')
     })
 
     it('appends multiple entries on successive calls', () => {
@@ -178,4 +183,62 @@ describe('TokenLedger', () => {
       consoleSpy.mockRestore()
     })
   })
+
+  describe('Part B: Telemetry Audit DTO', () => {
+    it('records and loads structured TelemetryAuditEvent with full audit traceability', () => {
+      const ledger = new TokenLedger(ledgerPath)
+      ledger.recordAudit({
+        auditId: 'aud_9876543210',
+        jobId: 'e4e9d777-3db4-44d1-907e-bff18ee3342e',
+        projectId: 'backend',
+        tenantId: 'org_corp_acme',
+        userId: 'usr_dev_456',
+        timestamp: '2026-08-07T11:14:01.000Z',
+        agent: 'claude-cli',
+        model: 'claude-3-5-sonnet',
+        skill: 'tdd-orchestrator',
+        executionMetrics: { durationMs: 4200, status: 'success' },
+        tokenUsage: {
+          inputTokens: 1250,
+          outputTokens: 450,
+          cacheCreationTokens: 100,
+          cacheReadTokens: 800,
+          calculatedCostUsd: 0.00645,
+        },
+      })
+
+      const persistedEvent = JSON.parse(readFileSync(ledgerPath, 'utf8').trim())
+      expect(persistedEvent.tokenUsage.inputTokens).toBe(1250)
+      expect(persistedEvent).not.toHaveProperty('inputTokens')
+      expect(persistedEvent).not.toHaveProperty('outputTokens')
+      expect(persistedEvent).not.toHaveProperty('cacheCreationTokens')
+      expect(persistedEvent).not.toHaveProperty('cacheReadTokens')
+      expect(persistedEvent).not.toHaveProperty('costUsd')
+
+      const report = ledger.report()
+      expect(report.events).toHaveLength(1)
+      const event = report.events[0]
+      expect(event.auditId).toBe('aud_9876543210')
+      expect(event.jobId).toBe('e4e9d777-3db4-44d1-907e-bff18ee3342e')
+      expect(event.projectId).toBe('backend')
+      expect(event.executionMetrics.durationMs).toBe(4200)
+      expect(event.tokenUsage.calculatedCostUsd).toBe(0.00645)
+    })
+
+    it('normalizes legacy flat JSONL entries to TelemetryAuditEvent format', () => {
+      const ledger = new TokenLedger(ledgerPath)
+      ledger.record('skill-legacy', 'agent-legacy', makeUsage({ inputTokens: 500, costUsd: 0.003 }))
+
+      const report = ledger.report()
+      expect(report.events).toHaveLength(1)
+      const event = report.events[0]
+      expect(event.auditId).toBeDefined()
+      expect(event.skill).toBe('skill-legacy')
+      expect(event.agent).toBe('agent-legacy')
+      expect(event.tokenUsage.inputTokens).toBe(500)
+      expect(event.tokenUsage.calculatedCostUsd).toBe(0.003)
+      expect(event.executionMetrics.status).toBe('success')
+    })
+  })
 })
+

@@ -27,34 +27,14 @@ You must separate frontend concerns into three decoupled layers to guarantee tes
 
 ## Mastered Skills
 
-### TDD
+### Harness Kit
 
-* **test-driven-development** — RED/GREEN/REFACTOR flow. **USE for every new implementation.**
-* **verification-before-completion** — Final validation before declaring task complete.
-* **finishing-a-development-branch** — Integration and finalization of development branches.
-
-### Debugging
-
-* **systematic-debugging** — **USE FIRST when the user reports a bug or error.** 4 phases: Root Cause → Pattern Analysis → Hypothesis → Implementation.
-
-### Quality
-
-* **receiving-code-review** — Receiving feedback: verify against codebase, evaluate, implement or pushback with technical reasoning.
-* **requesting-code-review** — Request formal code review.
-
-### Workflow & Planning
-
-* **executing-plans** — Load plan, execute task by task, verify each one.
-* **writing-plans** — Create implementation plan before touching code.
-* **brainstorming** — Explore approaches before deciding on implementation.
-* **subagent-driven-development** — Execute plan with subagents per task + 2-stage review.
-* **dispatching-parallel-agents** — When there are 2+ independent problems to solve in parallel.
-* **using-git-worktrees** — Set up isolated workspaces.
-* **using-superpowers** — Guide on how to find and use skills.
-
-### Memory
-
-* **project-memory** — Technical documentation specialist. Creates and maintains the `docs/adr` and `docs/feature` folder and root `README.md`. Stack-agnostic.
+* **read-ui-prototype** — Analyze interface prototypes (screens, Figma links, images) and translate them into a structured, semantic frontend specification. **USE before implementing any UI from a prototype or mockup.**
+* **tdd-orchestrator** — RED/GREEN/REFACTOR delivery flow, validation, and documentation coordination. **USE for every new implementation.**
+* **scope-refinement** — Clarify domain scope, acceptance criteria, and test scenarios before implementation.
+* **project-memory** — Maintain `docs/adr`, `docs/feature`, and root `README.md`.
+* **adversarial-qa** — Exercise edge cases, accessibility failures, and integration boundaries after implementation.
+* **the-grumpy-tech-lead** — Review systemic, performance, and maintainability risks.
 
 </mastered_skills>
 
@@ -110,11 +90,11 @@ When receiving an implementation plan:
 * Mark as in_progress
 * Follow each step exactly
 * Run verifications as specified
-* Commit after each task
+* Commit after each task only when the user or governing workflow explicitly authorizes commits
 * Mark as completed
 
  1. **Stop if blocked** — don't guess, ask.
- 2. **For each task, use test-driven-development** — RED → GREEN → REFACTOR
+ 2. **For each task, follow `tdd-orchestrator`** — RED → GREEN → REFACTOR
 
 </executing_plans>
 
@@ -152,7 +132,7 @@ When your code is reviewed:
 * Keep a strict separation of concerns between Style, Components, and Integration layers.
 * Failing test BEFORE any production code.
 * Run tests after every change.
-* Frequent and atomic commits.
+* When commits are authorized, keep them frequent and atomic.
 * Concrete evidence before success statements.
 * Systematic debugging before proposing fixes.
 * Test in the browser before declaring feature complete.

@@ -2,9 +2,27 @@
 doc_type: feature
 domain: agent_runner
 stack: [TypeScript, Node.js]
-depends_on: [ARCHITECTURE.md, TESTS.md]
-updated: 2026-08-04
+node_id: "feature:sdk_agent_runner"
+tags: [agent-runner, strategies, factory, runner]
+edges:
+  - relation: implements
+    target: "adr:architecture"
+  - relation: tested_by
+    target: "adr:tests"
+updated: "2026-08-08"
 ---
+
+```graph
+{
+  "node_id":"feature:sdk_agent_runner","domain":"agent_runner","implements":["adr:architecture"],"tested_by":["adr:tests"],
+  "entrypoints":["src/agent-runner/IAgentRunner.ts"],
+  "registration_files":["src/agent-runner/AgentRunnerRegistry.ts","src/agent-runner/AgentRunnerFactory.ts"],
+  "reference_files":["src/agent-runner/codex-cli/CodexCLIRunner.ts"],
+  "code_files":["src/agent-runner/AbstractCliRunner.ts","src/agent-runner/AgentRunnerError.ts","src/agent-runner/CliRunnerProgress.ts","src/agent-runner/NullAgentRunner.ts","src/agent-runner/antigravity-cli/AntigravityCLIRunner.ts","src/agent-runner/claude-cli/ClaudeCLIRunner.ts","src/agent-runner/claude-sdk/AgentRunnerConfig.ts","src/agent-runner/claude-sdk/ClaudeSDKRunner.ts","src/agent-runner/copilot-cli/CopilotCLIRunner.ts","src/agent-runner/copilot-sdk/CopilotSDKRunner.ts","src/agent-runner/cursor-cli/CursorCLIRunner.ts","src/agent-runner/cursor-sdk/CursorSDKRunner.ts","src/agent-runner/kiro-cli/KiroCLIRunner.ts","src/agent-runner/types.ts"],
+  "test_files":["src/agent-runner/__tests__/AgentRunnerConfig.test.ts","src/agent-runner/__tests__/AgentRunnerError.test.ts","src/agent-runner/__tests__/AgentRunnerModular.test.ts","src/agent-runner/__tests__/AntigravityCLIRunner.test.ts","src/agent-runner/__tests__/ClaudeAgentRunner.test.ts","src/agent-runner/__tests__/ClaudeCLIRunner.test.ts","src/agent-runner/__tests__/CodexCLIRunner.test.ts","src/agent-runner/__tests__/CopilotCLIRunner.test.ts","src/agent-runner/__tests__/CopilotRunner.test.ts","src/agent-runner/__tests__/CursorCLIRunner.test.ts","src/agent-runner/__tests__/CursorRunner.test.ts","src/agent-runner/__tests__/EnvFiltering.test.ts","src/agent-runner/__tests__/KiroCLIRunner.test.ts","tests/helpers/FakeAgentRunner.ts","tests/integration/t17-cursor-runner.test.ts","tests/integration/t18-antigravity-runner.test.ts","tests/unit/t03-agent-runner.test.ts","tests/unit/t11-copilot-runner.test.ts","tests/unit/t21-copilot-cli-runner.test.ts","tests/unit/t22-cursor-cli-runner.test.ts","tests/unit/t23-abstract-cli-runner.test.ts","tests/unit/t24-agent-invocation-service.test.ts","tests/unit/t25-cli-runner-progress.test.ts"]
+}
+```
+
 # SDK AGENT RUNNER
 Provides a decoupled, pluggable architecture for executing coding agents.
 
@@ -66,6 +84,16 @@ hrns run --agent unknown-agent
 ## BEST PRACTICES
 REQUIRED: Pass agent selection flags when running orchestration command.
 PROHIBITED: Hardcoding agent implementations directly into the orchestrator.
+
+## DOCUMENT MAP
+
+```mermaid
+graph TD
+    THIS["SDK Agent Runner Feature"] -->|implements| ARCH["Architecture ADR"]
+    THIS -->|tested_by| TESTS["Tests ADR"]
+    click ARCH "../adr/ARCHITECTURE.md"
+    click TESTS "../adr/TESTS.md"
+```
 
 ## REFERENCES
 - [**README.md**](../README.md): Main documentation index.

@@ -52,13 +52,6 @@ Based on gate scores, the orchestrator updates the project state machine into fo
 
 HarnessKit is distributed as a command-line plugin compatible with major AI developer ecosystems.
 
-> **⚠️ IMPORTANT!**
-> This project requires the [Superpowers](https://github.com/obra/superpowers) skill. Install it before initializing HarnessKit:
-
-```bash
-/plugin install superpowers@claude-plugins-official
-```
-
 ### Claude Code
 
 ```bash
@@ -79,8 +72,14 @@ copilot plugin install harness-kit@harness-kit
 ### Gemini CLI
 
 ```bash
-# Install the extension
 agy plugin install https://github.com/romabeckman/harness-kit
+```
+
+### Codex CLI
+
+```bash
+codex plugin marketplace add https://github.com/romabeckman/harness-kit
+codex plugin add harness-kit@harness-kit
 ```
 
 ---
@@ -128,6 +127,7 @@ To prevent role contamination, the orchestrator isolates operational contexts by
 | --- | --- |
 | **Project Memory** (`project-memory`) | Generates and maintains persistent technical documentation (`docs/README.md`, `docs/adr/ARCHITECTURE.md`, `docs/adr/TESTS.md`). The agent's long-term memory. |
 | **Scope Refinement** (`scope-refinement`) | DDD-based scope orchestrator. Maps Bounded Contexts, Aggregates, and Use Cases. Produces test scenarios before implementation starts. |
+| **Read UI Prototype** (`read-ui-prototype`) | Analyzes interface prototypes and produces structured, semantic frontend specifications for the `developer-frontend` agent. |
 | **Autonomous Orchestrator** (`autonomous-orchestrator`) | Sovereign loop manager. Fully automates execution across planning, implementation, validation, and auto-tuning phases without user interruption. |
 | **TDD Orchestrator** (`tdd-orchestrator`) | Enforces RED → GREEN → REFACTOR. Coordinates the full test-driven development cycle, blocking implementation without a failing test first. |
 | **The Grumpy Tech Lead** (`the-grumpy-tech-lead`) | Senior technical reviewer. Uses Socratic questioning to expose systemic risks (N+1, leaks, race conditions, SOLID violations). |
@@ -225,18 +225,19 @@ Explore the complete knowledge base inside the `docs/workflow/` directory. This 
 
 ---
 
-## Integration with Superpowers
-
-HarnessKit is designed to complement [Superpowers Skills](https://github.com/obra/superpowers). While HarnessKit defines the *strategy and discipline* (what to build and how to validate it), Superpowers provides the low-level *execution tools* (Git worktrees, parallel agents, etc.).
-
----
-
 ## Contributing
 
 1. Fork the repository: `https://github.com/romabeckman/harness-kit`
 2. Create a branch for your changes
 3. Follow the skill conventions in `skills/*/SKILL.md`
 4. Submit a PR with a clear description of what changed and why
+
+---
+
+## Contributors
+
+* [@lnonatto98](https://github.com/lnonatto98)
+* [@correriadev](https://github.com/correriadev)
 
 ---
 

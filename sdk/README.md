@@ -129,6 +129,8 @@ node dist/cli/run.js
 
 ## CLI commands
 
+> NOTE: CLI mode is under the user's control and responsibility. The SDK CLI is designed for long-running executions.
+
 ### `hrns init`
 
 Runs an interactive wizard to initialize your workspace:
@@ -175,7 +177,7 @@ Show version or help message.
 |---|---|---|---|
 | `--agent <type>` | `-a` | Agent runner type (see table below) | `--agent copilot-sdk` |
 | `--model <name>` | `-m` | Model override for all phases | `--model gpt-4o` |
-| `--effort <level>` | `-e` | Effort level override for all phases | `--effort high` |
+| `--effort <level>` | `-e` | Effort level override for all phases (`low`, `medium`, `high`, `max`) | `--effort high` |
 | `--reset` | | Force reset (skip interactive prompt) | |
 | `--resume` | | Force resume (skip interactive prompt) | |
 | `--scope <text>` | | Project scope / PRD (skips editor prompt) | `--scope "REST API with JWT"` |
@@ -218,15 +220,16 @@ Show version or help message.
 
 ## Agent runners
 
-Each runner is a self-contained strategy for invoking a specific AI backend. The SDK ships eight built-in runners:
+Each runner is a self-contained strategy for invoking a specific AI backend. The SDK ships nine built-in runners:
 
 | Type | Binary / SDK | Default model |
 |---|---|---|
 | `claude-cli` | `claude` CLI | _(from settings)_ |
 | `claude-sdk` | `@anthropic-ai/sdk` | `anthropic.claude-5-sonnet` |
 | `antigravity-cli` | `agy` CLI | `gemini-3.6-flash` |
+| `codex-cli` | `codex` CLI | `gpt-5.6-sol` / `gpt-5.6-luna` |
 | `copilot-cli` | `copilot` CLI | _(from settings)_ |
-| `copilot-sdk` | `@github/copilot-sdk` | `gpt-5.3-codex` |
+| `copilot-sdk` | `@github/copilot-sdk` | `gpt-5.6-sol` / `gpt-5.6-luna` |
 | `cursor-cli` | `agent` CLI | _(from settings)_ |
 | `cursor-sdk` | `@cursor/sdk` | `gpt-5.3-codex` |
 | `kiro-cli` | `kiro-cli` CLI | _(from settings)_ |
@@ -241,6 +244,7 @@ Each runner is a self-contained strategy for invoking a specific AI backend. The
 ### CLI shorthands
 
 ```bash
+hrns run --agent codex-cli           # codex-cli
 hrns run --agent cursor-sdk          # cursor-sdk (needs CURSOR_API_KEY)
 hrns run --agent copilot-cli         # copilot-cli
 hrns run --agent cursor-cli          # cursor-cli
@@ -285,7 +289,7 @@ The global file is created automatically on first run. You can also set `HARNESS
 |---|---|---|
 | `timeoutMs` | `number` | Default timeout (ms) for all phases under this runner |
 | `phases.<key>.model` | `string` | Model for this specific phase |
-| `phases.<key>.effort` | `string` | Reasoning effort: `low`, `medium`, `high` |
+| `phases.<key>.effort` | `string` | Reasoning effort: `low`, `medium`, `high`, `max` |
 | `phases.<key>.timeoutMs` | `number` | Phase-level timeout override |
 
 ### Runner keys
@@ -294,6 +298,7 @@ The global file is created automatically on first run. You can also set `HARNESS
 |---|---|
 | `claude` | `claude-cli` and `claude-sdk` |
 | `antigravity` | `antigravity-cli` |
+| `codex` | `codex-cli` |
 | `copilot` | `copilot-cli` and `copilot-sdk` |
 | `cursor` | `cursor-cli` and `cursor-sdk` |
 | `kiro` | `kiro-cli` |
@@ -338,12 +343,12 @@ The global file is created automatically on first run. You can also set `HARNESS
   "copilot": {
     "timeoutMs": 1800000,
     "phases": {
-      "bootstrap":      { "model": "gpt-5.3-codex",  "effort": "medium" },
-      "planning":       { "model": "anthropic.claude-5-sonnet", "effort": "high"   },
-      "implementation": { "model": "gpt-5.3-codex",  "effort": "medium" },
-      "review_tl":      { "model": "gpt-5.3-codex",  "effort": "low"    },
-      "review_adv":     { "model": "gpt-5.3-codex",  "effort": "low"    },
-      "memory":         { "model": "gpt-5.3-codex",  "effort": "low"    }
+      "bootstrap":      { "model": "gpt-5.6-sol",  "effort": "medium" },
+      "planning":       { "model": "gpt-5.6-sol",  "effort": "high"   },
+      "implementation": { "model": "gpt-5.6-luna", "effort": "max"    },
+      "review_tl":      { "model": "gpt-5.6-sol",  "effort": "medium" },
+      "review_adv":     { "model": "gpt-5.6-sol",  "effort": "medium" },
+      "memory":         { "model": "gpt-5.6-luna", "effort": "high"   }
     }
   },
   "cursor": {
@@ -355,6 +360,17 @@ The global file is created automatically on first run. You can also set `HARNESS
       "review_tl":      { "model": "gpt-5.3-codex",  "effort": "low"    },
       "review_adv":     { "model": "gpt-5.3-codex",  "effort": "low"    },
       "memory":         { "model": "gpt-5.3-codex",  "effort": "low"    }
+    }
+  },
+  "codex": {
+    "timeoutMs": 1800000,
+    "phases": {
+      "bootstrap":      { "model": "gpt-5.6-sol",  "effort": "medium" },
+      "planning":       { "model": "gpt-5.6-sol",  "effort": "high"   },
+      "implementation": { "model": "gpt-5.6-luna", "effort": "max"    },
+      "review_tl":      { "model": "gpt-5.6-sol",  "effort": "medium" },
+      "review_adv":     { "model": "gpt-5.6-sol",  "effort": "medium" },
+      "memory":         { "model": "gpt-5.6-luna", "effort": "high"   }
     }
   }
 }
@@ -498,11 +514,79 @@ npm run typecheck  # zero-error type check
 
 ---
 
+## Security considerations
+
+> [!CAUTION]
+> The harness-kit SDK executes AI agents with **elevated permissions** to enable autonomous operation. Read this section carefully before deploying.
+
+### Permission bypass flags (required for autonomous execution)
+
+Every CLI-based agent runner uses vendor-specific flags that **disable interactive permission prompts**. These flags are **necessary** for unattended autonomous execution — without them, the agent would block on confirmation prompts indefinitely. However, they grant the agent unrestricted access to the host filesystem, network, and shell.
+
+| Runner | Flag(s) | What it disables |
+|--------|---------|------------------|
+| `claude-cli` | `--permission-mode bypassPermissions` | All CLI permission confirmations |
+| `antigravity-cli` | `--dangerously-skip-permissions` | All CLI permission confirmations |
+| `codex-cli` | `--dangerously-bypass-approvals-and-sandbox` | Both approval prompts **and** the execution sandbox |
+| `cursor-cli` | `--force --trust --approve-mcps` | Confirmations, workspace trust, and MCP auto-approval |
+| `copilot-cli` | `--allow-all-tools --autopilot` | Tool restrictions and interactive mode |
+| `copilot-sdk` | `onPermissionRequest: approveAll` | SDK-level permission callbacks |
+| `kiro-cli` | `--trust-all-tools` | Tool trust confirmations |
+
+**Why these flags cannot be removed:** The orchestrator runs agents in a fully autonomous loop (Bootstrap → Planning → Development → Review → Memory). Each phase invokes an agent that must read/write files, run tests, and execute commands without human interaction. Removing these flags would require a human operator to approve every single tool call, breaking the autonomous pipeline.
+
+**Mitigations you should apply:**
+
+1. **Run in containers** — Execute the SDK inside Docker containers with restricted filesystem mounts, no network access to internal services, and resource limits. This is the strongest mitigation.
+2. **Use dedicated machines** — Do not run the SDK on machines containing sensitive credentials, production databases, or private keys.
+3. **Use Git worktrees** — The HTTP server mode already isolates each job in a Git worktree. Ensure `ALLOWED_WORKSPACES` is configured to restrict accessible paths.
+4. **Review agent output** — The orchestrator persists all agent output in `docs/product/`. Review generated code before merging.
+
+### HTTP server hardening
+
+When running the SDK as an HTTP daemon (`hrns serve`), apply these configurations:
+
+```bash
+# REQUIRED: Enable authentication (default is NoAuth — no authentication)
+AUTH_MODE=jwt                          # Options: basic, bearer, jwt, hmac
+AUTH_JWT_SECRET=your-strong-secret     # At least 32 characters
+
+# RECOMMENDED: Restrict network binding (default: 127.0.0.1)
+HOST=127.0.0.1                        # Do NOT use 0.0.0.0 without auth
+PORT=3000
+
+# RECOMMENDED: Restrict accessible project paths
+ALLOWED_WORKSPACES=/path/to/project1,/path/to/project2
+
+# RECOMMENDED: Configure project mappings
+PROJECT_MAPPINGS='{"myproject":{"path":"/path/to/project","baseBranch":"main"}}'
+```
+
+> [!WARNING]
+> Running the server without `AUTH_MODE` configured exposes all endpoints without authentication. Any client that can reach the server can submit orchestration jobs that execute AI agents with full permission bypass. **Always configure authentication in production.**
+
+> [!WARNING]
+> The SDK filters sensitive environment variables (API keys, tokens, passwords, database URLs) from child agent processes by default. However, if an agent is compromised via prompt injection, it could still attempt to access environment variables through shell commands. Use container isolation for defense-in-depth.
+
+### Prompt injection awareness
+
+The `scope` and `steeringMessage` fields in HTTP requests are incorporated into agent prompts. The SDK enforces a maximum length of 10,000 characters on the `scope` field and validates steering action outputs, but **no input sanitization can fully prevent prompt injection against LLM agents**. Treat these inputs as untrusted:
+
+- Always enable authentication on the HTTP server
+- Use JWT with `allowed_projects` claims to restrict per-user access via RBAC
+- Monitor `docs/product/tokens.jsonl` for unusual token consumption patterns
+- Review agent-generated code before merging to any protected branch
+
+### JWT authentication limitations
+
+The built-in JWT implementation supports **HS256 only** and validates the `alg` header to prevent algorithm confusion attacks. For production deployments requiring RS256, key rotation, or JWKS integration, consider placing a reverse proxy (nginx, Traefik, or a cloud API gateway) in front of the SDK server.
+
+---
+
 ## Further reading
 
 - [Daily Use Playbook](./docs/PLAYBOOK-DAILY-USE.md) — real-world recipes for multi-project setups, POCs, mid-run corrections, and more
 - [Agent runner architecture](./docs/feature/sdk_agent_runner.md) — runner internals and extension points
-- [Integration with Superpowers](https://github.com/obra/superpowers) — low-level execution tools (Git worktrees, parallel agents, etc.)
 
 ---
 

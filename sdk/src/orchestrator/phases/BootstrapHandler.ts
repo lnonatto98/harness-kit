@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { Phase, CliCommand } from '../types'
 import { AbstractPhaseHandler, Reviewontext } from './AbstractPhaseHandler'
 import { PhaseDecisionLogger } from '../services/PhaseDecisionLogger'
+import { buildDocsOrientationSection } from '../utils/PromptHelpers'
 
 export class BootstrapHandler extends AbstractPhaseHandler {
   async handle(phase: Phase, context: Reviewontext): Promise<Phase | null> {
@@ -75,7 +76,7 @@ export class BootstrapHandler extends AbstractPhaseHandler {
       `- Output ONLY the markdown table, no additional text.`,
       ``,
       `# FEATURE SIZING`,
-      `Each feature runs a full pipeline: scope refinement → TDD → tech lead review → QA review → documentation (4-7 agent calls per feature). A feature with broader scope does NOT cost more than a narrow one — the pipeline cost is per feature, not per unit of work inside it. Prefer fewer, well-scoped features.`,
+      `Each feature has fixed pipeline overhead: scope refinement → TDD → tech lead review → QA review → documentation (4-7 agent calls per feature). Broader scope still increases context, testing, and rework risk. Prefer the fewest cohesive features that each remain independently implementable and testable in one cycle.`,
       `- A feature is a cohesive, independently testable functional module. Think in user-facing flows, avoid technical layers.`,
       `- Group related work into ONE feature: all CRUD operations on the same entity, all endpoints of the same domain, tests with their implementation.`,
       `- NEVER create: single-endpoint features, single-file features, configuration-only features (e.g. "add CORS"), or features that separate tests from implementation.`,
@@ -88,12 +89,15 @@ export class BootstrapHandler extends AbstractPhaseHandler {
       `F001 User Management — full CRUD (create, read, update, delete) with input validation | F002 Authentication & Authorization — login, session, middleware, role-based access | F003 Database & Infrastructure — connection setup, migrations, seeding`
     ]
 
+    const orientationSection = buildDocsOrientationSection(context.config.projectPaths, context.workingDir)
+
     promptLines.push(
       ``,
       `<context>`,
       `Project paths: ${context.config.projectPaths.join(', ')}`,
       `</context>`,
       ``,
+      ...orientationSection,
       `<scope>`,
       `\`\`\`markdown`,
       context.config.scope.trim(),

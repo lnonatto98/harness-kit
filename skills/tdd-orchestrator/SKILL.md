@@ -10,7 +10,7 @@ description: Orchestrates development workflow using Test-Driven Development (TD
 ```
 IF invoked by autonomous-orchestrator:
     mode = AUTONOMOUS
-    → Read ${featureId}, ${domain}, ${projectPaths} from runtime context
+    → Read ${featureId}, ${domain}, ${projectPaths}, and ${tasks} from runtime context
     → Skip all interactive prompts
     → Use docs/specs/${domain}/ as single source of truth
 
@@ -35,6 +35,19 @@ IF invoked directly by human:
 | `docs/.graph.json` | Complete relation graph index for 1-hop document lookup and dependency traversal |
 
 *Note: If `docs/.digest.md` is present and provides complete stack/test commands, proceed directly. Fall back to reading full baseline documents below if `.digest.md` is missing or deeper technical context is required.*
+
+### Feature micrograph routing
+
+After macro orientation:
+
+1. Match `${featureId}` and `${domain}` against `.graph.json` node IDs, titles, paths, and tags.
+2. Read only frontmatter and top `graph` block from selected `docs/feature/*.md` document.
+3. Validate every routed path exists. If any path is stale or feature node is absent, use `rg --files` plus targeted `rg` searches, then continue with discovered paths.
+4. RED phase: read relevant `test_files` first.
+5. GREEN phase: read relevant files in this order: `entrypoints`, `registration_files`, `reference_files`, then `code_files`.
+6. Read full feature prose only when implementation needs design context not present in digest, graph, specs, or routed code.
+
+Do not copy routing arrays into `.graph.json` or create another routing artifact.
 
 ### Baseline documents (fallback / deep-dive):
 
@@ -77,14 +90,14 @@ REQUIRED: When `docs/specs/${domain}/REWORK-LOG.md` is present, apply these opti
 
 ## TDD Workflow — Execute Steps in Order
 
-<step id="1" name="Write Tests — RED Phase" skill="test-driven-development">
+<step id="1" name="Write Tests — RED Phase">
 
 ```
-AUTONOMOUS → translate each Given-When-Then from 004-*-test-scenarios.md into executable test code
+AUTONOMOUS → translate the Given-When-Then scenarios relevant to `${tasks}` into executable test code
 INTERACTIVE → analyze requirement and identify what needs to be tested
 ```
 
-- Consult `docs/adr/TESTS.md` for the default testing framework
+- Use test framework and commands from `.digest.md`; consult `docs/adr/TESTS.md` only when digest detail is missing or ambiguous
 - Create test structure (unit / integration / functional)
 - Write tests following AAA pattern (Arrange, Act, Assert)
 - Include positive and negative scenarios
@@ -93,10 +106,10 @@ INTERACTIVE → analyze requirement and identify what needs to be tested
 
 </step>
 
-<step id="2" name="Implement Code — GREEN + REFACTOR Phases" skill="test-driven-development">
+<step id="2" name="Implement Code — GREEN + REFACTOR Phases">
 
 ```
-AUTONOMOUS → follow ordered tasks from 003-*-tactical-design.md as implementation blueprint
+AUTONOMOUS → implement only `${tasks}`, following their order and dependencies in 003-*-tactical-design.md
 INTERACTIVE → analyze newly created tests to understand exact requirements
 ```
 
@@ -104,30 +117,30 @@ INTERACTIVE → analyze newly created tests to understand exact requirements
 - **REWORK (if `REWORK-LOG.md` present)**: address all architectural questions, vulnerabilities, and open points listed in `REWORK-LOG.md` alongside tactical tasks
 - After GREEN: refactor to remove duplication and improve readability
 - Keep tests green throughout refactor
-- Follow SOLID principles and conventions from `docs/adr/ARCHITECTURE.md`
+- Follow constraints from `.digest.md`; consult `docs/adr/ARCHITECTURE.md` only when work crosses architectural boundaries or digest detail is insufficient
 
 </step>
 
 <step id="3" name="Run Tests">
 
-Execute full test suite. *(Command varies by stack — consult `docs/adr/TESTS.md`. Examples: `npm test`, `pytest`, `mvn test`, `go test`.)*
+Execute full test suite using verified command from `.digest.md`; fall back to `docs/adr/TESTS.md` when unavailable.
 
 ```
 IF all tests pass → proceed to Step 4
 
 IF any test fails:
-    1. Invoke systematic-debugging skill BEFORE attempting any fix
+    1. Route diagnosis to the developer-debugging agent BEFORE attempting any fix
     2. Follow 4 debugging phases: Root Cause → Pattern Analysis → Hypothesis → Implementation
-    3. Fix production code via test-driven-development skill
+    3. Fix production code through this tdd-orchestrator RED/GREEN/REFACTOR workflow
        IRON LAW: never change tests to force passing unless test was conceptually wrong
     4. Re-run tests → repeat until all pass
 ```
 
 </step>
 
-<step id="4" name="Final Validation" skill="verification-before-completion">
+<step id="4" name="Final Validation">
 
-- Invoke `verification-before-completion` **before declaring any completion**
+- Execute this final validation gate **before declaring any completion**
 - Run full test suite one last time — check for regressions
 - Provide concrete evidence (actual test command output)
 
@@ -137,9 +150,9 @@ Task is COMPLETE only when: 100% tests pass WITH verified output evidence
 
 </step>
 
-<step id="5" name="Update Documentation" skill="project-memory">
+<step id="5" name="Update Documentation">
 
-When applicable, invoke `project-memory` to update:
+INTERACTIVE mode only: when applicable, invoke `project-memory` to update:
 - OpenAPI/Swagger specs, GraphQL schemas, internal endpoint docs
 - Input/Output schemas, descriptions, HTTP status codes
 - The `docs/feature/{FEATURE_NAME}.md` file must be updated whenever a feature is created or updated.
@@ -157,7 +170,7 @@ In the case of AUTONOMOUS, save the structured JSON in `docs/specs/${domain}/TDD
 ```json
 {
   "featureId": "string",
-  "status": "SUCCESS" | "FAILED",
+  "status": "SUCCESS",
   "metrics": {
     "totalTests": 0,
     "passed": 0,
@@ -172,6 +185,8 @@ In the case of AUTONOMOUS, save the structured JSON in `docs/specs/${domain}/TDD
 }
 ```
 
+`status` must be either `"SUCCESS"` or `"FAILED"`. Write `"SUCCESS"` only when the final test run has zero failures.
+
 </step>
 
 </workflow>
@@ -183,11 +198,12 @@ In the case of AUTONOMOUS, save the structured JSON in `docs/specs/${domain}/TDD
 ## Rules of Conduct
 
 **✅ Do:**
-- Read `docs/.digest.md` and `docs/.graph.json` first if present; fallback to full baseline docs (`README.md`, `ARCHITECTURE.md`, `TESTS.md`) if missing or deeper context required
-- Invoke `test-driven-development` before writing any production code
+- Read `docs/.digest.md` and `docs/.graph.json` first if present; select one feature micrograph and follow its role-based paths before broad search
+- Verify routed files exist; use targeted `rg` discovery when metadata is stale or missing
+- Follow this skill's RED phase before writing any production code
 - Run tests after every change
 - Fix production code — never alter correct tests to force passing
-- Invoke `verification-before-completion` before declaring completion
+- Execute the final validation step before declaring completion
 - Invoke `project-memory` for new or changes in the project
 
 **❌ Don't:**
@@ -196,7 +212,7 @@ In the case of AUTONOMOUS, save the structured JSON in `docs/specs/${domain}/TDD
 - Assume language, framework, or architecture without consulting docs
 - Run package installation commands automatically — always instruct the user
 - Declare "tests passed" without executed, verified output in the same message
-- Propose fixes for failing tests without first invoking `systematic-debugging`
+- Propose fixes for failing tests without first routing root-cause analysis to `developer-debugging`
 
 </rules>
 
@@ -222,7 +238,7 @@ The following must always be performed by the user — **never automate these**:
 
 ## Console Output Format
 
-At each step, emit a status block:
+In INTERACTIVE mode, emit a status block at each step. In AUTONOMOUS mode, keep console output minimal and rely on `TDD-OUTPUT.json` as the machine-readable result.
 
 ```
 📋 Step {N}: {Step Name} ({skill} — {phase})
@@ -231,20 +247,20 @@ At each step, emit a status block:
 
 **Example sequence:**
 ```
-📋 Step 1: Writing Tests (test-driven-development — RED)
+📋 Step 1: Writing Tests (tdd-orchestrator — RED)
 ✅ Tests written and verified failing — TESTS.md consulted
 
-📋 Step 2: Implementing Feature (test-driven-development — GREEN + REFACTOR)
+📋 Step 2: Implementing Feature (tdd-orchestrator — GREEN + REFACTOR)
 ✅ Minimal implementation complete; tests green; code refactored
 
 📋 Step 3: Running Tests
-⚠️  2 tests failed — invoking systematic-debugging...
-✅ Root cause identified — fixing via test-driven-development
+⚠️  2 tests failed — routing diagnosis to developer-debugging...
+✅ Root cause identified — fixing via tdd-orchestrator
 
 📋 Step 3: Re-running Tests
 ✅ All tests passed
 
-📋 Step 4: Final Validation (verification-before-completion)
+📋 Step 4: Final Validation (tdd-orchestrator)
 ✅ [test output evidence] All tests passed — claim verified
 
 📋 Step 5: Updating Documentation (project-memory)

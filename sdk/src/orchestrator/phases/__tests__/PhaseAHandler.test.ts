@@ -111,6 +111,9 @@ describe('PlanningHandler', () => {
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
             expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'LOW'");
+            expect(invokedPrompt).toContain('all required 001–004 artifacts');
+            expect(invokedPrompt).not.toContain('the-grumpy-tech-lead');
+            expect(mockContext.invokeAgent.mock.calls[0][0].phaseKey).toBe('planning');
         });
 
         it('includes HIGH override rule when config.complexity is HIGH', async () => {
@@ -120,15 +123,39 @@ describe('PlanningHandler', () => {
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
             expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'HIGH'");
+            expect(invokedPrompt).toContain('integrations, failure modes, security boundaries, concurrency, and compatibility risks');
+            expect(invokedPrompt).not.toContain('the-grumpy-tech-lead');
         });
 
-        it('omits COMPLEXITY OVERRIDE rule when config.complexity is undefined (AUTO)', async () => {
+        it('uses AUTO complexity evaluation when config.complexity is undefined', async () => {
             mockContext.config = { ...mockContext.config, complexity: undefined };
 
             await handler.handle(Phase.PLANNING, mockContext);
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
-            expect(invokedPrompt).not.toContain('Evaluate scope complexity between \'LOW\' and \'HIGH\'');
+            expect(invokedPrompt).toContain('Evaluate scope complexity between \'LOW\' and \'HIGH\'');
+            expect(invokedPrompt).not.toContain('COMPLEXITY OVERRIDE');
+        });
+
+        it('limits only 001 and 002 output documents to INLINE_THRESHOLD characters', async () => {
+            mockContext.checkSpecFilesPresent = vi.fn().mockReturnValue(false);
+            mockContext.extractTasksFromTacticalDesign = vi.fn().mockReturnValue([
+                { taskId: 'T001', description: 'Task', file: 'project' },
+            ]);
+
+            await handler.handle(Phase.PLANNING, mockContext);
+
+            const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
+            const outputLines = invokedPrompt.split('\n');
+            const problemSpaceLine = outputLines.find((line) => line.includes('001-problem-space.md'));
+            const contextMapLine = outputLines.find((line) => line.includes('002-context-map.md'));
+            const tacticalDesignLine = outputLines.find((line) => line.includes('003-${PROJECT_NAME}-tactical-design.md'));
+            const testScenariosLine = outputLines.find((line) => line.includes('004-${PROJECT_NAME}-test-scenarios.md'));
+
+            expect(problemSpaceLine).toContain('maximum 5000 characters');
+            expect(contextMapLine).toContain('maximum 5000 characters');
+            expect(tacticalDesignLine).not.toContain('maximum 5000 characters');
+            expect(testScenariosLine).not.toContain('maximum 5000 characters');
         });
 
         it('reloads latest scope from SCOPE.md via fsm.loadScope', async () => {

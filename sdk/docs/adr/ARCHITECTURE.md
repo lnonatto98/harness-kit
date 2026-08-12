@@ -5,10 +5,9 @@ stack: [typescript, nodejs]
 node_id: "adr:architecture"
 tags: [architecture, ports-and-adapters, state-machine, orchestrator]
 edges:
-  - relation: tested_by
+  - relation: references
     target: "adr:tests"
-    path: "./TESTS.md"
-updated: "2026-08-05"
+updated: "2026-08-08"
 ---
 # Arquitetura do Projeto
 
@@ -17,7 +16,10 @@ TypeScript SDK implementing an autonomous TDD orchestration loop using Ports-and
 
 ## FOLDER STRUCTURE
 <folder_structure>
+```
 sdk/
+├── docker/                       # Docker container setup and entrypoint
+│   └── entrypoint.sh             # Git bootstrap script (credentials, pre-cloning)
 ├── src/                          # Main SDK source directory
 │   ├── cli/                      # CLI entry point implementation
 │   │   └── run.ts                # Main command line parser and orchestrator executor
@@ -54,6 +56,7 @@ sdk/
 └── docs/                         # Technical documentation folder
     ├── adr/                      # Architectural Decisions Records
     └── feature/                  # Feature orientations and specs
+```
 </folder_structure>
 
 ## LAYERS
@@ -81,6 +84,12 @@ sdk/
 | `AnsiHelpers` | Low-level ANSI escape helpers: cursor-sdk control, color wrappers (`blue`, `cyan`, `green`, `dim`). | `src/ui/` |
 
 ## PATTERNS
+REQUIRED execute after code development for validation in order:
+  - Run `rtk npm install` to check dependencies
+  - Run `rtk npm run lint` to check code syntax
+  - Run `rtk npm run typecheck`
+  - Run `rtk npm run build`
+
 REQUIRED: Use Constructor Dependency Injection to decouple ports from adapters.
 REQUIRED: Spelled-out registration of new runner strategies via AgentRunnerRegistry.
 REQUIRED: Propagate AbortSignal downwards to child process groups or API requests to prevent leaks.
@@ -148,16 +157,6 @@ class DevelopmentHandler extends AbstractPhaseHandler {
 | Claude Code CLI | Local terminal coding agent | Spawn subprocess using local CLI auth |
 | Antigravity CLI | Execution of Google coding agent | Spawn subprocess using agy binary |
 | `hrns` CLI | Command-line interface for running and steering feature orchestration | Spawn and run local executable via `npm run` or global symlink |
-
-## DOCUMENT MAP
-
-```mermaid
-graph TD
-    THIS["Architecture ADR"] -->|tested_by| TESTS["Tests ADR"]
-    THIS -->|implemented_by| CORE["SDK Core Feature"]
-    click TESTS "./TESTS.md"
-    click CORE "../feature/SDK_CORE.md"
-```
 
 ## REFERENCES
 - [**README.md**](../README.md): Main documentation index.

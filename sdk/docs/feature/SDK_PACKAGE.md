@@ -1,10 +1,21 @@
 ---
 doc_type: feature
 domain: package
-stack: [npm, TypeScript]
-depends_on: [SDK_CORE.md, SDK_STATE.md, SDK_AGENT_RUNNER.md, ARCHITECTURE.md]
-updated: 2026-08-04
+stack: [TypeScript, Node.js]
+node_id: "feature:sdk_package"
+tags: [package, npm, build, exports]
+edges:
+  - relation: implements
+    target: "adr:architecture"
+  - relation: tested_by
+    target: "adr:tests"
+updated: "2026-08-08"
 ---
+
+```graph
+{"node_id":"feature:sdk_package","domain":"package","implements":["adr:architecture"],"tested_by":["adr:tests"],"entrypoints":["src/index.ts","src/cli/run.ts"],"registration_files":["package.json"],"reference_files":[],"code_files":["tsconfig.json","tsconfig.build.json"],"test_files":["tests/unit/t01-scaffold.test.ts","tests/unit/t15-public-api.test.ts"]}
+```
+
 # SDK PACKAGE
 Defines the publication surface of `harness-kit-sdk` for npm.
 
@@ -65,6 +76,16 @@ sdk/
 REQUIRED: Keep `exports` map as the authoritative entry point.
 REQUIRED: Add new public exports only through `sdk/src/index.ts`.
 PROHIBITED: Committing the `dist/` directory to source control.
+
+## DOCUMENT MAP
+
+```mermaid
+graph TD
+    THIS["SDK Package Feature"] -->|implements| ARCH["Architecture ADR"]
+    THIS -->|tested_by| TESTS["Tests ADR"]
+    click ARCH "../adr/ARCHITECTURE.md"
+    click TESTS "../adr/TESTS.md"
+```
 
 ## REFERENCES
 - [**SDK_CORE.md**](./SDK_CORE.md): Public API surface compiled into `dist/`.

@@ -7,11 +7,9 @@ tags: [sdk, orchestrator, state-machine, core]
 edges:
   - relation: implements
     target: "adr:architecture"
-    path: "../adr/ARCHITECTURE.md"
   - relation: tested_by
     target: "adr:tests"
-    path: "../adr/TESTS.md"
-updated: 2026-08-05
+updated: "2026-08-11"
 ---
 # SDK CORE
 
@@ -21,17 +19,11 @@ updated: 2026-08-05
   "domain": "core",
   "implements": ["adr:architecture"],
   "tested_by": ["adr:tests"],
-  "code_files": [
-    "src/orchestrator/HarnessOrchestrator.ts",
-    "src/orchestrator/StateMachine.ts",
-    "src/orchestrator/ReentryResolver.ts",
-    "src/file-state/FileStateManager.ts",
-    "src/context-assembler/ContextAssembler.ts"
-  ],
-  "test_files": [
-    "tests/unit/t10-state-machine.test.ts",
-    "tests/integration/t13-orchestrator-phasec.test.ts"
-  ]
+  "entrypoints": ["src/orchestrator/HarnessOrchestrator.ts"],
+  "registration_files": ["src/orchestrator/ChainBuilder.ts","src/orchestrator/phases/index.ts"],
+  "reference_files": ["src/orchestrator/phases/AbstractPhaseHandler.ts"],
+  "code_files": ["src/context-assembler/ContextAssembler.ts","src/context-assembler/types.ts","src/json-extraction/JsonExtractionProtocol.ts","src/json-extraction/types.ts","src/orchestrator/BootstrapConfigParser.ts","src/orchestrator/ReentryResolver.ts","src/orchestrator/phases/BootstrapHandler.ts","src/orchestrator/phases/CascadeBlockedHandler.ts","src/orchestrator/phases/DeployHandler.ts","src/orchestrator/phases/DevelopmentHandler.ts","src/orchestrator/phases/MemoryHandler.ts","src/orchestrator/phases/PlanningHandler.ts","src/orchestrator/phases/RefinementHandler.ts","src/orchestrator/phases/ReviewHandler.ts","src/orchestrator/phases/TransitionHandler.ts","src/orchestrator/services/AgentInvocationService.ts","src/orchestrator/services/PhaseDecisionLogger.ts","src/orchestrator/services/ProjectStateService.ts","src/orchestrator/types.ts","src/orchestrator/utils/OrchestratorFormatter.ts","src/orchestrator/utils/PhaseFileUtils.ts","src/orchestrator/utils/PromptHelpers.ts","src/telemetry/TokenLedger.ts","src/validation-gate/ValidationGate.ts","src/validation-gate/types.ts"],
+  "test_files": ["src/context-assembler/__tests__/ContextAssembler.test.ts","src/orchestrator/__tests__/ChainBuilder.test.ts","src/orchestrator/__tests__/types.test.ts","src/orchestrator/phases/__tests__/PhaseAHandler.test.ts","src/orchestrator/phases/__tests__/PhaseBHandler.test.ts","src/orchestrator/phases/__tests__/PhaseFHandler.test.ts","src/orchestrator/phases/__tests__/RefinementHandler.test.ts","src/orchestrator/services/__tests__/AgentInvocationService.test.ts","src/orchestrator/services/__tests__/PhaseDecisionLogger.test.ts","src/orchestrator/services/__tests__/ProjectStateService.test.ts","src/orchestrator/utils/__tests__/PhaseFileUtils.test.ts","src/orchestrator/utils/__tests__/PromptHelpers.test.ts","src/telemetry/__tests__/TokenLedger.test.ts","src/validation-gate/__tests__/ValidationGate.test.ts","tests/integration/t11-orchestrator-bootstrap-phasea.test.ts","tests/integration/t12-orchestrator-phaseb.test.ts","tests/integration/t13-orchestrator-phasec.test.ts","tests/integration/t14-orchestrator-phased-e.test.ts","tests/unit/phases/t04-phasec-handler.test.ts","tests/unit/phases/t06-phasee-handler.test.ts","tests/unit/phases/t07-deploy-handler.test.ts","tests/unit/phases/t08-refinement-handler.test.ts","tests/unit/t02-types.test.ts","tests/unit/t04-json-extraction.test.ts","tests/unit/t05-validation-gate.test.ts","tests/unit/t08-context-assembler.test.ts","tests/unit/t09-reentry-resolver.test.ts","tests/unit/t10-state-machine.test.ts"]
 }
 ```
 
@@ -68,6 +60,7 @@ sdk/src/
 - **Ports-and-Adapters**: The orchestrator domain has zero runtime dependencies outside the standard library.
 - **Atomic Writes**: `FileStateManager` writes all files via a write-to-temp-then-rename pattern.
 - **Never-Throws JSON Extraction**: Returns an outcome union and never throws an exception.
+- **Canonical Telemetry Writes**: `TokenLedger` stores token metrics only inside `tokenUsage` while reading legacy flat records.
 
 ## HOW TO USE THE ORCHESTRATOR API
 
@@ -103,7 +96,10 @@ const orchestrator = new HarnessOrchestrator({});
 
 ## BEST PRACTICES
 REQUIRED: Use the provided `isExtractionError` / `isExtractionResult` type guards to branch on extraction outcomes.
+REQUIRED: Keep `001-problem-space.md` and `002-context-map.md` at or below `INLINE_THRESHOLD` (5,000 characters) during scope refinement.
+ALLOWED: Generate `003-*` tactical designs and `004-*` test scenarios without this prompt cap.
 PROHIBITED: Mutating state directly without using the `IFileStateManager` port.
+REQUIRED: On development retries, resolve `reworkLogPath` from the project working directory and embed its Markdown content in the TDD prompt.
 
 ## DOCUMENT MAP
 
@@ -123,5 +119,5 @@ graph TD
 
 ## CHANGE SUMMARY
 - **Added:** YAML frontmatter, CHANGE SUMMARY, code examples.
-- **Updated:** UPPERCASE sections, standard folder tree format.
+- **Updated:** UPPERCASE sections, standard folder tree format, canonical telemetry record contract, and retry prompts with inline rework-log content.
 - **Removed:** Open limitations section as they are bug tickets, not permanent documentation.

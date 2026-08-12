@@ -35,6 +35,15 @@ updated: YYYY-MM-DD
   "domain": "[domain name]",
   "implements": ["adr:architecture"],
   "tested_by": ["adr:tests"],
+  "entrypoints": [
+    "relative/path/to/public-entrypoint.ts"
+  ],
+  "registration_files": [
+    "relative/path/to/registry-or-factory.ts"
+  ],
+  "reference_files": [
+    "relative/path/to/representative-implementation.ts"
+  ],
   "code_files": [
     "relative/path/to/source1.ts"
   ],
@@ -44,21 +53,32 @@ updated: YYYY-MM-DD
 }
 ```
 
+Use routing arrays by role:
+
+- `entrypoints`: public or runtime entry files agents should inspect first.
+- `registration_files`: registries, factories, dependency injection, exports, or command maps changed when extending the feature.
+- `reference_files`: smallest representative implementations to copy as patterns.
+- `code_files`: remaining production files defining the feature.
+- `test_files`: tests proving feature behavior and integration.
+
+REQUIRED: Use project-relative paths, remove duplicates across arrays, and list only files that exist.
+REQUIRED: Use empty arrays when a routing role does not apply.
+PROHIBITED: Copying these source paths into YAML `edges`, `.digest.md`, or `.graph.json`.
+REQUIRED: For ADR documents, omit the entire embedded `graph` block; source routing belongs only to feature documents.
+
 ## OVERVIEW
 [Context limited to 2–3 sentences. State the main concept in the context of the project stack. No introductory filler.]
 
 ## FOLDER STRUCTURE
-[Show only the files and folders directly relevant to this module. Use aligned comments to explain the business role of each entry.]
+[High-level architectural view: folders and layers only, not a file inventory. Show one representative entry per folder/layer — enough to convey the module's shape and where new code of each type belongs. PROHIBITED: enumerating every individual file already listed in the `code_files`/`test_files` arrays of the top ````graph` block — that duplicates content and wastes tokens. If a folder holds many similar files (e.g. multiple use cases, multiple adapters), collapse them into one annotated line (e.g. `use-cases/ # RunX, GetY, UpdateZ use cases`) instead of one line per file.]
 <folder_structure>
 ```
 src/module-name/
-├── domain/
-│   ├── business-entity     # Core logic and invariants
-│   └── business-validator  # Domain-specific validations
+├── domain/                 # Core logic, invariants, domain-specific validations
 ├── application/
-│   └── business-flow       # Orchestration and use cases
+│   └── use-cases/          # Orchestration and business flows
 └── infrastructure/
-    └── external-adapter    # Persistence or external integrations
+    └── adapters/            # Persistence or external integrations
 ```
 </folder_structure>
 

@@ -2,9 +2,20 @@
 doc_type: feature
 domain: terminal_ui
 stack: [TypeScript, Node.js]
-depends_on: [ARCHITECTURE.md, SDK_CORE.md, SDK_STEERING.md]
-updated: 2026-08-04
+node_id: "feature:sdk_terminal_ui"
+tags: [ui, terminal, ansi, spinner]
+edges:
+  - relation: implements
+    target: "adr:architecture"
+  - relation: tested_by
+    target: "adr:tests"
+updated: "2026-08-08"
 ---
+
+```graph
+{"node_id":"feature:sdk_terminal_ui","domain":"terminal_ui","implements":["adr:architecture"],"tested_by":["adr:tests"],"entrypoints":["src/ui/TerminalProgress.ts"],"registration_files":[],"reference_files":["src/ui/AnsiHelpers.ts"],"code_files":["src/ui/StartupBanner.ts"],"test_files":["src/ui/__tests__/StartupBanner.test.ts","tests/unit/t26-terminal-progress.test.ts"]}
+```
+
 # SDK TERMINAL UI
 Provides ANSI-based terminal rendering utilities for the CLI orchestrator.
 
@@ -44,6 +55,16 @@ REQUIRED: Check `process.stdout.columns` before rendering width-dependent compon
 REQUIRED: Import `AnsiHelpers` statically — do not use `require()` inline.
 PROHIBITED: Writing raw ANSI escape strings outside of `AnsiHelpers`.
 PROHIBITED: Calling `startSpinner()` again without calling `stopSpinner()` first.
+
+## DOCUMENT MAP
+
+```mermaid
+graph TD
+    THIS["SDK Terminal UI Feature"] -->|implements| ARCH["Architecture ADR"]
+    THIS -->|tested_by| TESTS["Tests ADR"]
+    click ARCH "../adr/ARCHITECTURE.md"
+    click TESTS "../adr/TESTS.md"
+```
 
 ## REFERENCES
 - [**ARCHITECTURE.md**](../adr/ARCHITECTURE.md): Folder structure and module responsibilities.

@@ -1,16 +1,14 @@
 # Project Documentation
 
-Index of project technical documentation for **harness-kit SDK**. Use the links below to navigate the available documents.
+Index of project technical documentation for **harness-kit SDK**. Use these links for document navigation and graph topology.
 
 ## DOCUMENTATION INDEX
-**RULE:** Only reference documents located in `./docs/adr/` or `./docs/feature/`. No other folders are permitted. Always validate that referenced files exist in one of these directories before finalizing the document.
-
 | Document | Description | Reading |
 |----------|-------------|----------|
 | [**ARCHITECTURE.md**](./adr/ARCHITECTURE.md) | Architecture, folder organization, and code patterns for the project. | **Mandatory** |
 | [**TESTS.md**](./adr/TESTS.md) | Testing strategies, patterns, and execution commands. | **Mandatory** |
 | [**.digest.md**](./.digest.md) | Machine-readable project orientation digest (stack, test commands, rules). | **Mandatory** |
-| [**.graph.json**](./.graph.json) | Machine-readable document relation graph index for agent topology navigation. | Optional |
+| [**.graph.json**](./.graph.json) | Machine-readable document relation graph index for agent topology navigation. | **Mandatory** |
 | [**STEERING.md**](./adr/STEERING.md) | Session steering overrides and state machine rollbacks. | Optional |
 | [**AGENT-RUNNERS.md**](./adr/AGENT-RUNNERS.md) | Outbound LLM runner strategies and dynamic registries. | Optional |
 | [**TELEMETRY.md**](./adr/TELEMETRY.md) | Token ledger tracking, cost auditing, and rate limit halts. | Optional |
@@ -23,12 +21,15 @@ Index of project technical documentation for **harness-kit SDK**. Use the links 
 | [**SDK_STATE.md**](./feature/SDK_STATE.md) | SDK state persistence and recovery logic. | Optional |
 | [**SDK_STEERING.md**](./feature/SDK_STEERING.md) | Session steering: `SteeringAnalyzer`, `steeringRules` config, and rollback/rule actions. | Optional |
 | [**SDK_TERMINAL_UI.md**](./feature/SDK_TERMINAL_UI.md) | Terminal progress spinner, progress bar, and ANSI color helpers. | Optional |
+| [**HTTP_SERVER.md**](./feature/HTTP_SERVER.md) | Headless HTTP server daemon, REST endpoints, and Docker container support. | Optional |
 | [**E2E_TESTING_SUITE.md**](./feature/E2E_TESTING_SUITE.md) | End-to-End integration and CLI test suite specifications and setup. | Optional |
 
 ## RECOMMENDED READING ORDER
 
+If an exact path is supplied, read it directly. Otherwise use this order:
+
 1. **.digest.md** — fast orientation (architecture, stack, test commands).
-2. **adr/ARCHITECTURE.md** — technical foundation and project organization.
-3. **adr/TESTS.md** — code validation and quality.
-4. **.graph.json** — relation graph index for 1-hop document lookup.
+2. **.graph.json** — relation graph index for 1-hop document lookup.
+3. **adr/ARCHITECTURE.md** — technical foundation and project organization.
+4. **adr/TESTS.md** — code validation and quality.
 5. Additional documents in adr/ or feature/ folders as needed for the task.
