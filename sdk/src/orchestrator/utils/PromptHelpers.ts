@@ -1,27 +1,40 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { Complexity } from '../types'
+import type { Feature } from '../../file-state/types'
 
-const INLINE_THRESHOLD = 5000
+export type InlinePolicy = 'never' | 'auto' | 'always'
+
+export const INLINE_THRESHOLD = 5000
+export const FORCE_INLINE_MAX = 15000
 
 export function inlineOrReference(
   label: string,
   content: string | undefined,
   filePath: string,
-  lang: string = 'markdown'
+  lang: string = 'markdown',
+  policy: InlinePolicy = 'never'
 ): string[] {
   if (!content) return []
 
-  if (content.length < INLINE_THRESHOLD) {
-    return [`<${label}>`, `\`\`\`${lang}`, content, '```', `</${label}>`]
+  const shouldInline =
+    policy === 'always' ? content.length <= FORCE_INLINE_MAX :
+      policy === 'auto' ? content.length <= INLINE_THRESHOLD : false
+
+  if (!shouldInline) {
+    return [
+      `<${label}_ref>`,
+      `Read file: \`${filePath}\``,
+      `</${label}_ref>`,
+    ]
   }
 
   return [
-    `<${label}_ref>`,
-    `Read file: \`${filePath}\` (content too large to inline — ${content.length} chars)`,
+    `<${label}>`,
     `\`\`\`${lang}`,
     content,
     '```',
-    `</${label}_ref>`,
+    `</${label}>`,
   ]
 }
 
@@ -55,12 +68,30 @@ export const EVALUATION_PRINCIPLE_QA = [
  * §4.6: Shared rework directive builder for TL and QA review prompts.
  * Prevents re-reporting of already-fixed issues across rework cycles.
  */
-export function buildReworkSection(reworkLogPath: string, totalReworks: number, reworkLogExists: boolean): string[] {
+export function buildReworkSection(
+  reworkLogPath: string,
+  totalReworks: number,
+  reworkLogExists: boolean,
+  policy: InlinePolicy = 'always'
+): string[] {
   if (!reworkLogExists) return []
+
+  let content: string | undefined
+  if (existsSync(reworkLogPath)) {
+    try {
+      content = readFileSync(reworkLogPath, 'utf-8').trim()
+    } catch {
+      content = undefined
+    }
+  }
+
+  const reworkLines = content
+    ? inlineOrReference('rework_log_content', content, reworkLogPath, 'markdown', policy)
+    : [`Read the file \`${reworkLogPath}\` to know what was fixed in previous rounds.`]
 
   return [
     `<rework_history totalReworks="${totalReworks}">`,
-    `Read the file \`${reworkLogPath}\` to know what was fixed in previous rounds.`,
+    ...reworkLines,
     `</rework_history>`,
     ``,
     `<rework_directive round="${totalReworks}">`,
@@ -81,7 +112,12 @@ export function buildReworkSection(reworkLogPath: string, totalReworks: number, 
  * Reads docs/.digest.md and docs/.graph.json from each project path (and workingDir) if present,
  * and formats them for injection directly into phase execution prompts.
  */
-export function buildDocsOrientationSection(projectPaths: string[], workingDir?: string): string[] {
+export function buildDocsOrientationSection(
+  projectPaths: string[],
+  workingDir?: string,
+  digestPolicy: InlinePolicy = 'never',
+  graphPolicy: InlinePolicy = 'never'
+): string[] {
   const targets: string[] = []
   if (Array.isArray(projectPaths)) {
     targets.push(...projectPaths)
@@ -131,11 +167,11 @@ export function buildDocsOrientationSection(projectPaths: string[], workingDir?:
       lines.push(`<project_orientation path="${projPath}">`)
 
       if (digestContent) {
-        lines.push(...inlineOrReference('digest_md', digestContent, join(projPath, 'docs', '.digest.md'), 'markdown'))
+        lines.push(...inlineOrReference('digest_md', digestContent, join(projPath, 'docs', '.digest.md'), 'markdown', digestPolicy))
       }
 
       if (graphContent) {
-        lines.push(...inlineOrReference('graph_json', graphContent, join(projPath, 'docs', '.graph.json'), 'json'))
+        lines.push(...inlineOrReference('graph_json', graphContent, join(projPath, 'docs', '.graph.json'), 'json', graphPolicy))
       }
 
       lines.push('</project_orientation>')
@@ -148,4 +184,57 @@ export function buildDocsOrientationSection(projectPaths: string[], workingDir?:
 
   return lines
 }
+
+/** Formats steering rules or user rules into a bullet list or fallback. */
+export function formatRulesSection(rules?: string[]): string {
+  if (rules && rules.length > 0) {
+    return rules.map((r) => `- ${r}`).join('\n')
+  }
+  return '- No additional rules provided'
+}
+
+/** Formats project paths into a markdown bullet list. */
+export function formatProjectPathsList(projectPaths: string[]): string {
+  return projectPaths.map((p) => `- ${p}`).join('\n')
+}
+
+/** Builds the scope complexity rules block for LOW, HIGH, or AUTO evaluation. */
+export function buildComplexityRules(complexity?: Complexity): string[] {
+  const resolved = complexity ?? Complexity.AUTO
+  if (resolved === Complexity.LOW) {
+    return [
+      `- COMPLEXITY OVERRIDE: Classify as 'LOW' — do not re-evaluate scope complexity.`,
+      `- For 'LOW': Keep analysis concise and reuse established patterns, but still produce all required 001–004 artifacts.`,
+    ]
+  }
+  if (resolved === Complexity.HIGH) {
+    return [
+      `- COMPLEXITY OVERRIDE: Classify as 'HIGH' — do not re-evaluate scope complexity.`,
+      `- For 'HIGH': Give additional depth to integrations, failure modes, security boundaries, concurrency, and compatibility risks while producing all required 001–004 artifacts.`,
+    ]
+  }
+  return [
+    `- Evaluate scope complexity between 'LOW' and 'HIGH'. LOW is characterized by crystal-clear requirements, zero structural ambiguities, isolated changes, zero cross-team dependencies, use of existing patterns, straightforward flows, zero backward compatibility risks, and standard unit testing without complex integrations.`,
+    `- If LOW: keep analysis concise and reuse established patterns. If HIGH: deepen analysis of integrations, failure modes, security boundaries, concurrency, and compatibility risks. In both cases, produce all required 001–004 artifacts.`,
+  ]
+}
+
+/** Formats feature dependencies as a comma-separated list of specs folders or 'None'. */
+export function formatFeatureDependencies(backlog: Feature[], feature: Feature): string {
+  return (
+    backlog
+      .filter((f) => feature.dependencies.includes(f.id))
+      .map((f) => `\`${join('docs', 'specs', f.domain)}\``)
+      .join(', ') || 'None'
+  )
+}
+
+/** Formats pending tasks into a markdown list with taskId and description. */
+export function formatTasksList(tasks: Array<{ taskId: string; description: string }>): string {
+  if (tasks.length === 0) {
+    return '- No pending tasks provided'
+  }
+  return tasks.map((t) => `- [${t.taskId}] ${t.description}`).join('\n')
+}
+
 
