@@ -46,7 +46,8 @@ async function main(): Promise<void> {
   }
 
   if (cmd === 'report') {
-    cmdReport(cwd)
+    const reportArgs = args.slice(1)
+    cmdReport(cwd, reportArgs)
     return
   }
 
@@ -68,6 +69,12 @@ async function main(): Promise<void> {
     const { cmdCandidate } = await import('./services/candidate-service.js')
     const candidateArgs = args.slice(1)
     await cmdCandidate(cwd, candidateArgs)
+    return
+  }
+
+  if (cmd === 'erase') {
+    const { cmdErase } = await import('./services/erase-service.js')
+    await cmdErase(args.slice(1))
     return
   }
 

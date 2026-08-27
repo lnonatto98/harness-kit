@@ -17,7 +17,8 @@ export type { SteeringAction } from './orchestrator/SteeringAnalyzer'
 // Agent runner interface and null implementation
 export type { IAgentRunner } from './agent-runner/IAgentRunner'
 export { NullAgentRunner } from './agent-runner/NullAgentRunner'
-export type { AgentInvocation, AgentOutput, ContextPayload } from './agent-runner/types'
+export { Runner } from './agent-runner/types'
+export type { AgentInvocation, AgentOutput, ContextPayload, OpenCodeRunnerConfig } from './agent-runner/types'
 
 // Agent runner — ClaudeCLIRunner (default, uses local claude CLI)
 export { ClaudeCLIRunner } from './agent-runner/claude-cli/ClaudeCLIRunner'
@@ -40,6 +41,7 @@ export { CursorSDKRunner } from './agent-runner/cursor-sdk/CursorSDKRunner'
 export type { CursorSDKRunnerConfig } from './agent-runner/cursor-sdk/CursorSDKRunner'
 export { KiroCLIRunner } from './agent-runner/kiro-cli/KiroCLIRunner'
 export { CodexCLIRunner } from './agent-runner/codex-cli/CodexCLIRunner'
+export { OpenCodeCLIRunner } from './agent-runner/opencode-cli/OpenCodeCliRunner'
 
 // File state types
 export type {
@@ -79,6 +81,14 @@ export type {
   ReviewPayload,
   MemoryPayload,
 } from './context-assembler/types'
+export {
+  readTddOutput,
+  summarizeTddOutput,
+} from './orchestrator/utils/PhaseFileUtils'
+export type {
+  TddOutput,
+  TddOutputSummary,
+} from './orchestrator/utils/PhaseFileUtils'
 
 // HTTP Server
 export { HttpServer, startHttpServer } from './server'

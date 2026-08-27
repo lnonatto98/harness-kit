@@ -97,11 +97,11 @@ describe('T16 — HarnessSettings', () => {
 
     expect(settings.resolve('codex', 'planning')).toEqual({
       model: 'gpt-5.6-sol',
-      effort: 'high',
+      effort: 'medium',
     })
     expect(settings.resolve('codex', 'implementation')).toEqual({
-      model: 'gpt-5.6-luna',
-      effort: 'xhigh',
+      model: 'gpt-5.6-terra',
+      effort: 'high',
     })
   })
 

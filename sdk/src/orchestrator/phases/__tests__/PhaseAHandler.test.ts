@@ -111,7 +111,7 @@ describe('PlanningHandler', () => {
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
             expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'LOW'");
-            expect(invokedPrompt).toContain('all required 001–004 artifacts');
+            expect(invokedPrompt).toContain('only the required 003–004 artifacts');
             expect(invokedPrompt).not.toContain('the-grumpy-tech-lead');
             expect(mockContext.invokeAgent.mock.calls[0][0].phaseKey).toBe('planning');
         });
@@ -124,6 +124,7 @@ describe('PlanningHandler', () => {
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
             expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'HIGH'");
             expect(invokedPrompt).toContain('integrations, failure modes, security boundaries, concurrency, and compatibility risks');
+            expect(invokedPrompt).toContain('Read the generated `001-problem-space.md` and explicitly answer every question from its `Socratic Questions` section');
             expect(invokedPrompt).not.toContain('the-grumpy-tech-lead');
         });
 
