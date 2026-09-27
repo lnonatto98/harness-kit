@@ -66,10 +66,10 @@ async function promptForMode(parsedMode?: RunMode): Promise<RunMode> {
   return select({
     message: "Select execution mode:",
     choices: [
-      { name: "quick", value: RunMode.QUICK, description: "Bootstrap → Planning → Development → Memory → Deploy (skips Review)\n💡 Tip: Quick execution for bug fixes and small tasks." },
-      { name: "fast", value: RunMode.FAST, description: "Bootstrap → Planning → Development → Review → Memory → Deploy\n💡 Tip: Use when business requirements are already detailed." },
-      { name: "Thinking", value: RunMode.THINKING, description: "Refinement → Bootstrap → Planning → Development → Review → Memory → Deploy\n💡 Tip: Starts with business refinement, asks questions, and creates a detailed document with key decisions." },
-      { name: "Deep Thinking", value: RunMode.DEEP_THINKING, description: "Refinement → Bootstrap → Planning (Deep Thinking) → Development → Review → Memory → Deploy\n💡 Tip: Adds development planning documents and uses more tokens; choose for multiple mapped projects (web and API, or multiple microservices)." },
+      { name: "quick", value: RunMode.QUICK, description: "Bootstrap → Planning → Development → Memory → Deploy (skips Review)\n\n💡 Tip: Quick execution for bug fixes and small tasks." },
+      { name: "fast", value: RunMode.FAST, description: "Bootstrap → Planning → Development → Review → Memory → Deploy\n\n💡 Tip: Use when business requirements are already detailed, for example with the pbb-design skill or another refinement method." },
+      { name: "Thinking", value: RunMode.THINKING, description: "Refinement → Bootstrap → Planning → Development → Review → Memory → Deploy\n\n💡 Tip: Starts with business refinement, asks questions, and creates a detailed document with key decisions." },
+      { name: "Deep Thinking", value: RunMode.DEEP_THINKING, description: "Refinement → Bootstrap → Planning (Deep Thinking) → Development → Review → Memory → Deploy\n\n💡 Tip: Adds development planning documents and uses more tokens; choose for multiple mapped projects (web and API, or multiple microservices)." },
     ],
     default: RunMode.THINKING,
   });
