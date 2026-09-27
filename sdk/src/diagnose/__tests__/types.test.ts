@@ -35,7 +35,7 @@ describe('Diagnose Domain Types & Helpers', () => {
   it('sanitizes SessionSnapshot by removing sensitive env variables and api keys', () => {
     const raw: any = {
       runner: 'copilot-cli',
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       effort: 'xhigh',
       scopeSummary: 'Test Scope',
       featureIds: ['F001'],
@@ -47,7 +47,7 @@ describe('Diagnose Domain Types & Helpers', () => {
 
     const sanitized = sanitizeSessionSnapshot(raw)
     expect(sanitized.runner).toBe('copilot-cli')
-    expect(sanitized.model).toBe('gpt-5.6-luna')
+    expect(sanitized.model).toBe('gpt-6-luna')
     expect(sanitized.effort).toBe('xhigh')
     expect(sanitized.scopeSummary).toBe('Test Scope')
     expect(sanitized.featureIds).toEqual(['F001'])
@@ -84,10 +84,10 @@ describe('Diagnose Domain Types & Helpers', () => {
 
   it('validates DiagnoseSettings structure', () => {
     const settings: DiagnoseSettings = {
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       effort: 'xhigh',
     }
-    expect(settings.model).toBe('gpt-5.6-luna')
+    expect(settings.model).toBe('gpt-6-luna')
     expect(settings.effort).toBe('xhigh')
   })
 })

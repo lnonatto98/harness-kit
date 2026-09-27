@@ -9,7 +9,7 @@ describe('MetaHarnessAgentAdapter', () => {
     runner: 'copilot-cli',
     agent: 'developer-backend',
     skill: 'tdd-orchestrator',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     effort: 'xhigh',
     status: 'pending',
     timestamp: '2026-08-15T10:00:00.000Z',
@@ -26,7 +26,7 @@ describe('MetaHarnessAgentAdapter', () => {
     })
 
     const output = await adapter.invoke(sampleRecord, 'session-2026-08-15-001', {
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       effort: 'xhigh',
     })
 
@@ -35,7 +35,7 @@ describe('MetaHarnessAgentAdapter', () => {
       expect.objectContaining({
         agent: 'harness-kit:meta-harness-agent',
         session: { id: 'session-original-123' },
-        model: 'gpt-5.6-luna',
+        model: 'gpt-6-luna',
         effort: 'xhigh',
         prompt: expect.stringContaining('session_id: session-2026-08-15-001'),
       })

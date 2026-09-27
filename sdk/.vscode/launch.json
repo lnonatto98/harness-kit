@@ -76,7 +76,7 @@
         "--agent",
         "codex-cli",
         "--model",
-        "gpt-5.6-luna",
+        "gpt-6-luna",
         "--effort=low",
         "--skip-deploy",
         "--debug"
@@ -98,7 +98,7 @@
         "--agent",
         "codex-cli",
         "--model",
-        "gpt-5.6-luna",
+        "gpt-6-luna",
         "--effort=low",
         "--skip-deploy",
         "--debug"
@@ -120,7 +120,7 @@
         "--agent",
         "copilot-cli",
         "--model",
-        "gpt-5.6-luna",
+        "gpt-6-luna",
         "--effort=low",
         "--skip-deploy",
         "--debug"

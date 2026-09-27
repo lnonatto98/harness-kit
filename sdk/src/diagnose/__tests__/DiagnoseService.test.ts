@@ -54,7 +54,7 @@ describe('DiagnoseService', () => {
         status: 'pending',
         snapshot: {
           runner: 'copilot-cli',
-          model: 'gpt-5.6-luna',
+          model: 'gpt-6-luna',
           effort: 'xhigh',
           scopeSummary: 'Task 3',
           featureIds: ['F003'],
@@ -69,7 +69,7 @@ describe('DiagnoseService', () => {
         status: 'pending',
         snapshot: {
           runner: 'cursor-cli',
-          model: 'gpt-5.6-luna',
+          model: 'gpt-6-luna',
           effort: 'xhigh',
           scopeSummary: 'Task 4',
           featureIds: ['F004'],

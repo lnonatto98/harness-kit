@@ -26,8 +26,8 @@ describe('parseStandardRunnerArgs', () => {
       model: 'claude-sonnet-4.5',
       restArgs: [],
     })
-    expect(parseStandardRunnerArgs(['--model=gpt-5.6-turbo'])).toEqual({
-      model: 'gpt-5.6-turbo',
+    expect(parseStandardRunnerArgs(['--model=gpt-6-turbo'])).toEqual({
+      model: 'gpt-6-turbo',
       restArgs: [],
     })
   })

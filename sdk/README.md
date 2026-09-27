@@ -168,7 +168,7 @@ Runs post-orchestration harness diagnosis and meta-harness optimization. It read
 ```bash
 hrns diagnose                                    # process pending sessions in default batches of 3
 hrns diagnose --agent copilot-cli                # specify runner for diagnosis
-hrns diagnose --model gpt-5.6-luna --effort high # override model and reasoning effort
+hrns diagnose --model gpt-6-luna --effort high # override model and reasoning effort
 hrns diagnose --batch-size 5                     # process 5 sessions per batch
 ```
 
@@ -339,9 +339,9 @@ Each runner is a self-contained strategy for invoking a specific AI backend. The
 | `claude-cli` | `claude` CLI | _(from settings)_ |
 | `claude-sdk` | `@anthropic-ai/sdk` | `anthropic.claude-5-sonnet` |
 | `antigravity-cli` | `agy` CLI | `gemini-3.8-flash` |
-| `codex-cli` | `codex` CLI | `gpt-5.6-sol` / `gpt-5.6-luna` |
+| `codex-cli` | `codex` CLI | `gpt-6-sol` / `gpt-6-luna` |
 | `copilot-cli` | `copilot` CLI | _(from settings)_ |
-| `copilot-sdk` | `@github/copilot-sdk` | `gpt-5.6-sol` / `gpt-5.6-luna` |
+| `copilot-sdk` | `@github/copilot-sdk` | `gpt-6-sol` / `gpt-6-luna` |
 | `cursor-cli` | `agent` CLI | _(from settings)_ |
 | `cursor-sdk` | `@cursor/sdk` | `gpt-5.3-codex` |
 | `kiro-cli` | `kiro-cli` CLI | _(from settings)_ |
@@ -437,7 +437,7 @@ The global file is created automatically on first run. You can also set `HARNESS
   "codex": {
     "timeoutMs": 1800000,
     "phases": {
-      "qa_planning": { "model": "gpt-5.6-sol", "effort": "medium" }
+      "qa_planning": { "model": "gpt-6-sol", "effort": "medium" }
     }
   }
 }

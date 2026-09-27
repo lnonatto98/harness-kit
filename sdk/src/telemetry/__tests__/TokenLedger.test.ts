@@ -125,11 +125,11 @@ describe('TokenLedger', () => {
       ['gpt-5-mini', '$0.2000'],
       ['gpt-6.2-mini', '$0.2000'],
       ['gpt-6.2-nano', '$0.2000'],
-      ['gpt-5.6-luna', '$0.2000'],
+      ['gpt-6-luna', '$0.2000'],
       ['gpt-5.9-luna', '$0.2000'],
-      ['gpt-5.6-terra', '$0.9000'],
+      ['gpt-6-terra', '$0.9000'],
       ['gpt-6.2-terra', '$0.9000'],
-      ['gpt-5.6-sol', '$2.1000'],
+      ['gpt-6-sol', '$2.1000'],
       ['gpt-6.2-sol', '$2.1000'],
       ['gpt-6-astra', '$3.7000'],
       ['gpt-6.2-astra', '$3.7000'],
@@ -160,7 +160,7 @@ describe('TokenLedger', () => {
       const ledger = new TokenLedger(ledgerPath)
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
       ledger.record('skill', 'agent', makeUsage({ model: 'claude-sonnet-4-6', cacheReadTokens: 1_000_000 }))
-      ledger.record('skill', 'agent', makeUsage({ model: 'gpt-5.6-luna', cacheReadTokens: 100_000 }))
+      ledger.record('skill', 'agent', makeUsage({ model: 'gpt-6-luna', cacheReadTokens: 100_000 }))
 
       ledger.printReport()
 

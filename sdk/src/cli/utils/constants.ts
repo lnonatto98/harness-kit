@@ -132,7 +132,7 @@ GENERAL OPTIONS
 EXAMPLES
   hrns run
   hrns run --diagnose
-  hrns run --agent copilot-cli --model gpt-5.6-luna
+  hrns run --agent copilot-cli --model gpt-6-luna
   hrns run --reset --scope "Build a REST API" --path ./api --path ./web --score 0.9
   hrns run --resume --steering "focus on security hardening"
   hrns run --reset --scope "Fix bug" --path ./api --mode fast
@@ -211,7 +211,7 @@ OPTIONS
 EXAMPLES
   hrns diagnose
   hrns diagnose --agent copilot-cli
-  hrns diagnose --model gpt-5.6-luna --effort xhigh
+  hrns diagnose --model gpt-6-luna --effort xhigh
   hrns diagnose --batch-size 5
 `
 

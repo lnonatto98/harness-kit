@@ -72,7 +72,7 @@ describe('extended QA engines', () => {
       params: {
         protocolVersion: '2025-11-25',
         capabilities: {},
-        clientInfo: { name: 'harness-kit-qa', version: '0.9.2' },
+        clientInfo: { name: 'harness-kit-qa', version: '0.9.3' },
       },
     })
     expect(request).toHaveBeenNthCalledWith(2, MCP_TARGET, expect.objectContaining({
@@ -121,7 +121,7 @@ describe('extended QA engines', () => {
       params: {
         _meta: {
           'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-          'io.modelcontextprotocol/clientInfo': { name: 'harness-kit-qa', version: '0.9.2' },
+          'io.modelcontextprotocol/clientInfo': { name: 'harness-kit-qa', version: '0.9.3' },
           'io.modelcontextprotocol/clientCapabilities': {},
         },
       },
