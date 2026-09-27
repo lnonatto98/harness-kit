@@ -85,7 +85,7 @@ describe('AntigravityCLIRunner', () => {
 
     expect(args).toEqual([
       '--output-format', 'json',
-      '--print-timeout', '1801000ms',
+      '--print-timeout', '3601000ms',
       '--dangerously-skip-permissions',
       '--agent', 'test-agent',
     ])
