@@ -385,7 +385,7 @@ The global file is created automatically on first run. You can also set `HARNESS
 ```json
 {
   "<runner-key>": {
-    "timeoutMs": 1800000,
+    "timeoutMs": 3600000,
     "phases": {
       "<phase-key>": {
         "model": "anthropic.claude-5-sonnet",
@@ -435,7 +435,7 @@ The global file is created automatically on first run. You can also set `HARNESS
 ```json
 {
   "codex": {
-    "timeoutMs": 1800000,
+    "timeoutMs": 3600000,
     "phases": {
       "qa_planning": { "model": "gpt-6-sol", "effort": "medium" }
     }

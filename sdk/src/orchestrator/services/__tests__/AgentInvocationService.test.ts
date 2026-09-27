@@ -222,7 +222,7 @@ describe('AgentInvocationService', () => {
 
     it('falls back to DEFAULT_PHASE_TIMEOUT_MS when both config and settings return undefined', async () => {
       // Verifying the default is applied: runner.run should be called (not rejected)
-      // because timeoutMs defaults to DEFAULT_PHASE_TIMEOUT_MS (30min), not 0.
+      // because timeoutMs defaults to DEFAULT_PHASE_TIMEOUT_MS (60min), not 0.
       const runner = makeRunner()
       const settings = {
         resolve: vi.fn().mockReturnValue({}),
@@ -239,7 +239,11 @@ describe('AgentInvocationService', () => {
       )
 
       expect(runner.run).toHaveBeenCalledTimes(1)
-      expect(DEFAULT_PHASE_TIMEOUT_MS).toBe(1_800_000)
+      expect(runner.run).toHaveBeenCalledWith(
+        expect.objectContaining({ timeoutMs: 3_600_000 }),
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+      expect(DEFAULT_PHASE_TIMEOUT_MS).toBe(3_600_000)
     })
   })
 
