@@ -23,7 +23,7 @@ The CLI runner may use unattended permission flags. Steering text guides the mod
 | Interactive mode choice | `fast` | Pass `--mode` to avoid the mode prompt |
 | Acceptance scores | `0.70` | Both values use `[0.00, 1.00]` |
 | Maximum reworks | `2` | Applies before final `FAILED` or `BLOCKED` verdict |
-| Phase timeout | 30 minutes | Configurable in settings |
+| Phase timeout | 1 hour | Configurable in settings |
 | Deploy | enabled | Disable with `--skip-deploy` |
 
 ## Execution modes
