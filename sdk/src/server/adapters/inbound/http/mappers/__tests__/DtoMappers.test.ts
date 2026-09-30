@@ -42,15 +42,36 @@ describe('DtoMappers Anti-Corruption Layer (ACL)', () => {
     }
   })
 
-  it('UT-1.2.8: Maps mode ("quick", "fast", "thinking") to OrchestratorConfig using resolveMode', () => {
+  it.each(['quick', 'thinking', 'unknown', null])('rejects mode override %s', (mode) => {
     process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
-    const quickConfig = DtoMappers.toOrchestratorConfig({ scope: 'quick-test', project: 'backend', agent: 'claude-cli', mode: 'quick', idempotencyKey: 'idem-1' })
-    expect(quickConfig.skipValidation).toBe(true)
-    expect(quickConfig.skipMemory).toBe(false)
+    expect(() => DtoMappers.toOrchestratorConfig({
+      scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', mode,
+    } as any)).toThrowError(HttpServerError)
+  })
 
-    const fastConfig = DtoMappers.toOrchestratorConfig({ scope: 'fast-test', project: 'backend', agent: 'claude-cli', mode: 'fast', idempotencyKey: 'idem-2' })
-    expect(fastConfig.complexity).toBe('LOW')
-    expect(fastConfig.skipValidation).toBe(false)
+  it.each(['skipValidation', 'skipMemory', 'enableRefinement'])('rejects %s overrides', (field) => {
+    process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
+    for (const value of [true, false]) {
+      expect(() => DtoMappers.toOrchestratorConfig({
+        scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', [field]: value,
+      })).toThrowError(HttpServerError)
+    }
+  })
+
+  it.each([true, false, null])('rejects refine=%s', (refine) => {
+    expect(() => DtoMappers.toOrchestratorConfig({
+      scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', refine,
+    } as any)).toThrowError(HttpServerError)
+  })
+
+  it.each([undefined, 'fast'])('always applies fast configuration for mode %s', (mode) => {
+    process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
+    const config = DtoMappers.toOrchestratorConfig({
+      scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', mode,
+    })
+    expect(config).toMatchObject({
+      complexity: 'LOW', skipValidation: false, skipMemory: false, enableRefinement: false,
+    })
   })
 
   it('UT-1.2.9: Normalizes workspace paths from project list', () => {

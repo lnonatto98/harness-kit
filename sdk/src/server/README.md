@@ -245,8 +245,8 @@ curl -X DELETE http://localhost:3000/orchestrator/jobs/clean \
 ## Non-Interactive Invariants
 
 > ⚠️ **Important Execution Constraints:**
-> - Interactive pre-planning refinement (`refine: true`) requires terminal TTY input and is **forbidden** in HTTP mode. The server returns `HTTP 400 Bad Request`.
-> - Interactive `mode: "deep_thinking"` is forbidden in HTTP mode and returns `HTTP 400 Bad Request`.
+> - Refinement parameters (`refine` and `enableRefinement`) are **forbidden** in HTTP mode, including `false`. The server returns `HTTP 400 Bad Request`.
+> - Execution mode is fixed to **fast**. Omit `mode` or send `"fast"`; every other value returns `HTTP 400 Bad Request`. Validation and memory remain enabled; `skipValidation` and `skipMemory` overrides return `HTTP 400 Bad Request`.
 > - Parameter `project` is required and must contain at least 1 project identifier.
 > - One project is supported per job. Arrays with multiple projects return `HTTP 400 Bad Request`.
 > - `idempotencyKey`, `scope`, and `agent` are required.

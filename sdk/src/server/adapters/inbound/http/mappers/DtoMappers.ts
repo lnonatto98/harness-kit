@@ -47,7 +47,7 @@ export class DtoMappers {
     dto: RunRequestDtoExtended,
     overrideWorkspacePath?: string
   ): OrchestratorConfig {
-    if ((dto as any).refine !== undefined) {
+    if ((dto as any).refine !== undefined || dto.enableRefinement !== undefined) {
       throw new HttpServerError(
         400,
         'REFINE_NOT_ALLOWED',
@@ -83,8 +83,11 @@ export class DtoMappers {
       )
     }
 
-    if (dto.mode !== undefined && ![RunMode.QUICK, RunMode.FAST, RunMode.THINKING].includes(dto.mode as RunMode)) {
-      throw new HttpServerError(400, 'INVALID_MODE', 'HTTP mode must be quick, fast, or thinking.')
+    if (dto.mode !== undefined && dto.mode !== RunMode.FAST) {
+      throw new HttpServerError(400, 'INVALID_MODE', 'HTTP execution mode is fixed to fast.')
+    }
+    if (dto.skipValidation !== undefined || dto.skipMemory !== undefined) {
+      throw new HttpServerError(400, 'MODE_OVERRIDE_NOT_ALLOWED', 'Fast mode validation and memory phases cannot be overridden in HTTP requests.')
     }
     if (dto.score !== undefined && (typeof dto.score !== 'number' || !Number.isFinite(dto.score) || dto.score < 0.1 || dto.score > 1)) {
       throw new HttpServerError(400, 'INVALID_SCORE', 'Score must be a number between 0.1 and 1.')
@@ -144,8 +147,7 @@ export class DtoMappers {
       throw new HttpServerError(400, 'MULTIPLE_PROJECTS_NOT_SUPPORTED', 'HTTP jobs currently support one project per isolated worktree.')
     }
 
-    const rawMode = dto.mode ?? 'fast'
-    const modeConfig = resolveMode(rawMode as any)
+    const modeConfig = resolveMode(RunMode.FAST)
 
     return {
       scope: scope.trim(),
@@ -154,8 +156,8 @@ export class DtoMappers {
       projectPaths: resolvedWorkspaces,
       complexity: modeConfig.complexity,
       reworks: dto.reworks ?? 2,
-      skipValidation: dto.skipValidation ?? modeConfig.skipValidation,
-      skipMemory: dto.skipMemory ?? modeConfig.skipMemory,
+      skipValidation: modeConfig.skipValidation,
+      skipMemory: modeConfig.skipMemory,
       // The server owns branch-specific deployment after checking completion.
       skipDeploy: true,
       enableRefinement: false,
