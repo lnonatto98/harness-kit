@@ -249,7 +249,8 @@ For example, `production` in `payments` and `production` in `ledger` are distinc
 | Find a project | `search_projects`: list accessible projects, match an exact key, or search a key or name. Results identify projects, their environments, and current snapshot IDs. |
 | Find facts or entities | `search_entities`: search current environment snapshots by default. Supply a project, environment, snapshot, or another discovery filter. Use a short `query` for names, metadata, or document sections. |
 | Read context and evidence | `get_context`: read an entity, its relationships, owners, and evidence. Pin the `entity_id` and `snapshot_id` returned in the same search result. |
-| Inspect an environment | `get_environment`: use the exact project key and environment name found through `search_projects`. |
+| Inspect an environment | `get_environment`: use the exact project key and selected environment name; its `current_snapshot_id` identifies that environment's latest published version. |
+| Read past changes | `get_history`: list one environment's revisions; use `query` to search changed entity keys, names, and metadata before or after changes, including removals. Pass a returned `snapshot_id` and the same query for change details and before/after references. |
 | Read direct dependencies | `get_dependencies`: choose inbound, outbound, or both for an entity ID returned by search. |
 | Find an integration path | `find_integration_paths`: use searched source and target entity IDs; inspect returned direction, owners, provenance, and evidence. |
 | Assess a proposed change | `analyze_impact`: requires `memory:impact`. Use a searched entity ID and a concrete change description; inspect bounds and truncation flags. |
@@ -265,15 +266,15 @@ The MCP also exposes bounded `memory://entities/{entity_id}`, `memory://projects
 
 3. For work involving multiple projects, verify each project independently. Do not reuse an environment or snapshot from one project when querying another project.
 
-4. For a project-wide current question, inspect each environment in that project with a non-null live `current_snapshot_id`. A `search_entities` call without an environment or snapshot selector may search current snapshots across environments; preserve the project and environment attached to every finding.
+4. Resolve the exact project/tenant and environment before answering project facts. Ask for missing or ambiguous scope; reuse explicit conversation selections. Inspect multiple environments only when explicitly requested.
 
-5. For a named environment, identify it using both project and environment name and use that environment's current snapshot. If environment records exist for that project but the requested environment has no current snapshot, report no current environment data for that project/environment pair.
+5. Call `get_environment` for the selected project/environment and pin `search_entities` to its live `current_snapshot_id`. If the pointer is null, report no current environment data.
 
-6. Use a legacy project active pointer only when the MCP project has no environment records. Do not use another project's environment as a fallback.
+6. Only `environments.current_snapshot_id` identifies the latest published version of that environment. Never select another environment because its timestamp or version is newer.
 
 7. Read a matching entity with `get_context`, passing the `entity_id` and `snapshot_id` from the same `search_entities` result. Without a snapshot ID, `get_context` may select the newest current occurrence from another environment.
 
-8. Search history only when the user asks about an earlier state or change over time. Establish the current project/environment baseline first, then use `include_past_snapshots=true`. Label historical evidence by project, environment, snapshot, revision, publication version, and current status when returned.
+8. For past changes, call `get_history` with the resolved project/tenant, selected environment, and relevant `query`. Query matches a case-insensitive literal substring on both sides of entity changes; filtering precedes totals and pagination. Inspect a returned `snapshot_id` with the same query, then call `get_context` with each non-null before/after reference's `entity_id` and `snapshot_id`. Use `limit`, `offset`, and `has_more` for further pages. Label historical evidence by project, environment, snapshot, revision, and publication version.
 
 9. Preserve provenance, evidence, project, environment, snapshot, pagination, and truncation details that affect the conclusion. Reuse a `search_entities` continuation cursor only with unchanged filters, authenticated scope, project, and snapshot selection.
 
@@ -327,8 +328,10 @@ Keep each tool call bounded and include only relevant evidence in the final answ
 </scope>
 <tool_plan>
   Resolve and verify the Payments project.
-  Find and record its current project/environment snapshot baseline first.
-  Then search with include_past_snapshots=true and pin context to each relevant snapshot.
+  Ask which environment to inspect unless already explicitly selected.
+  Call get_history with that project/environment and query="payment contract".
+  Inspect a returned snapshot_id with get_history using the same query.
+  Read each non-null before/after reference with get_context, pinned to its entity_id and snapshot_id.
 </tool_plan>
 <evidence_rules>
   Label current and historical results with project and environment.
