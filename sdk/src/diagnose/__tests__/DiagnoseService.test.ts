@@ -129,7 +129,7 @@ describe('DiagnoseService', () => {
       1,
       expect.objectContaining({ sessionId: 'session-2026-08-15-001' }),
       'session-2026-08-15-001',
-      { model: 'anthropic.claude-5-sonnet', effort: 'low' }
+      { model: 'claude-sonnet-5', effort: 'high' }
     )
     expect(mockAdapter.invoke).toHaveBeenNthCalledWith(
       2,
@@ -202,7 +202,7 @@ describe('DiagnoseService', () => {
     expect(result.remaining).toBe(0)
     expect(mockAdapter.invokeMetaHarness).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: 'session-2026-08-15-001' }),
-      { model: 'anthropic.claude-5-sonnet', effort: 'low' }
+      { model: 'claude-sonnet-5', effort: 'high' }
     )
   })
 
