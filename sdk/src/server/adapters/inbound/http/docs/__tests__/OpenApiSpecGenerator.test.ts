@@ -59,7 +59,11 @@ describe('OpenApiSpecGenerator', () => {
     expect(schema.properties.baseBranch).toBeUndefined()
     expect(schema.properties.useWorktree).toBeUndefined()
     expect(schema.properties.project.type).toBe('string')
-    expect(schema.properties.mode.enum).not.toContain('deep_thinking')
+    expect(schema.properties.mode.enum).toEqual(['fast'])
+    expect(schema.properties.refine).toBeUndefined()
+    expect(schema.properties.enableRefinement).toBeUndefined()
+    expect(schema.properties.skipValidation).toBeUndefined()
+    expect(schema.properties.skipMemory).toBeUndefined()
     expect(schema.properties.score).toBeDefined()
   })
 
