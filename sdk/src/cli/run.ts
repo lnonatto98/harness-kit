@@ -4,8 +4,11 @@ import { printVersion } from './utils/cli-utils'
 import { cmdReport } from './services/report-service'
 import { HELP, COMMAND_HELP } from './utils/constants'
 import { DebugContext } from './DebugContext'
+import { checkForUpdates } from './utils/update-notifier'
 
 async function main(): Promise<void> {
+  const { version } = require('../../package.json') as { version: string }
+  checkForUpdates(version)
   const args = process.argv.slice(2)
   const cmd = args[0]
   const cwd = process.cwd()
@@ -62,6 +65,12 @@ async function main(): Promise<void> {
     const { cmdDiagnose } = await import('./services/diagnose-service.js')
     const diagnoseArgs = args.slice(1)
     await cmdDiagnose(cwd, diagnoseArgs)
+    return
+  }
+
+  if (cmd === 'qa') {
+    const { cmdQa } = await import('./services/qa-service.js')
+    await cmdQa(cwd, args.slice(1))
     return
   }
 

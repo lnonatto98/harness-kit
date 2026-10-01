@@ -50,7 +50,7 @@ export class HarnessOrchestrator implements Reviewontext {
       ?? (process.env.ANTHROPIC_API_KEY
         ? AgentRunnerFactory.create({ type: Runner.CLAUDE_SDK })
         : AgentRunnerFactory.create({ type: Runner.CLAUDE_CLI }))
-    this.config = config
+    this.config = { ...config, agentRunner: this.agentRunner }
     this.workingDir = options.workingDir ?? process.cwd()
     this.settings = config.settings ?? HarnessSettings.load(this.workingDir)
     const productDir = config.productDir ?? join(this.workingDir, 'docs', 'product')
@@ -69,7 +69,14 @@ export class HarnessOrchestrator implements Reviewontext {
 
     // Determine initial phase via re-entry resolver
     const onDisk = this.readOnDiskState()
-    const entryPhase = ReentryResolver.resolve(onDisk)
+    const resolvedEntryPhase = ReentryResolver.resolve(onDisk)
+    const backlogAlreadyPopulated = onDisk.productFilesExist && onDisk.features.length > 0
+    const entryPhase = config.enableRefinement
+      && !this.fsm.existRefinement()
+      && !backlogAlreadyPopulated
+      && (resolvedEntryPhase === Phase.BOOTSTRAP || resolvedEntryPhase === Phase.PLANNING)
+      ? Phase.REFINEMENT
+      : resolvedEntryPhase
     this.state = {
       currentPhase: entryPhase,
       activeFeatureId: onDisk.config?.activeFeatureId ?? onDisk.activeFeature?.id ?? null,

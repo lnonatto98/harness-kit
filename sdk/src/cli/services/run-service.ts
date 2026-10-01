@@ -14,9 +14,11 @@ import {
 } from "../utils/constants";
 import { ResetOptions, resetOptions } from "./reset-service";
 import { parseRunArgs } from "../utils/run-args-parser";
+import { selectAgentRunner } from "../utils/agent-selection";
 import { DebugContext } from "../DebugContext";
-import { Runner } from "../../agent-runner/types";
 import { FileStateManager } from "../../file-state/FileStateManager";
+import type { Feature } from "../../file-state/types";
+import { buildDevelopmentScopeFromRun } from "./qa/QaDevelopmentRenewal";
 
 export interface RunOptions {
   agentType?: string;
@@ -25,6 +27,10 @@ export interface RunOptions {
 }
 
 export type RunAction = "reset" | "resume"
+
+export function hasCompletedAllFeatures(features: ReadonlyArray<Pick<Feature, "status">>): boolean {
+  return features.length > 0 && features.every(feature => feature.status === "COMPLETED")
+}
 
 interface ResolvedMode {
   complexity: Complexity
@@ -42,14 +48,15 @@ interface ResolvedMode {
 export function resolveMode(mode?: RunMode): ResolvedMode {
   switch (mode) {
     case RunMode.QUICK:
-      return { complexity: Complexity.LOW, skipValidation: true, skipMemory: true, enableRefinement: false }
+      return { complexity: Complexity.LOW, skipValidation: true, skipMemory: false, enableRefinement: false }
     case RunMode.FAST:
       return { complexity: Complexity.LOW, skipValidation: false, skipMemory: false, enableRefinement: false }
+    case RunMode.THINKING:
+      return { complexity: Complexity.LOW, skipValidation: false, skipMemory: false, enableRefinement: true }
     case RunMode.DEEP_THINKING:
       return { complexity: Complexity.HIGH, skipValidation: false, skipMemory: false, enableRefinement: true }
-    case RunMode.THINKING:
     default:
-      return { complexity: Complexity.AUTO, skipValidation: false, skipMemory: false, enableRefinement: false }
+      return { complexity: Complexity.AUTO, skipValidation: false, skipMemory: false, enableRefinement: true }
   }
 }
 
@@ -59,12 +66,12 @@ async function promptForMode(parsedMode?: RunMode): Promise<RunMode> {
   return select({
     message: "Select execution mode:",
     choices: [
-      { name: "quick", value: RunMode.QUICK, description: "Bootstrap → Planning → Development → Deploy (skips Review and Memory)" },
-      { name: "fast", value: RunMode.FAST, description: "Bootstrap → Planning → Development → Review (Only QA) → Memory → Deploy" },
-      { name: "Thinking", value: RunMode.THINKING, description: "Bootstrap → Planning → Development → Review → Memory → Deploy" },
-      { name: "Deep Thinking", value: RunMode.DEEP_THINKING, description: "Bootstrap → Planning (Deep Thinking) → Development → Review → Memory → Deploy" },
+      { name: "quick", value: RunMode.QUICK, description: "Bootstrap → Planning → Development → Memory → Deploy (skips Review)\n\n💡 Tip: Quick execution for bug fixes and small tasks." },
+      { name: "fast", value: RunMode.FAST, description: "Bootstrap → Planning → Development → Review → Memory → Deploy\n\n💡 Tip: Use when business requirements are already detailed, for example with the pbb-design skill or another refinement method." },
+      { name: "Thinking", value: RunMode.THINKING, description: "Refinement → Bootstrap → Planning → Development → Review → Memory → Deploy\n\n💡 Tip: Starts with business refinement, asks questions, and creates a detailed document with key decisions." },
+      { name: "Deep Thinking", value: RunMode.DEEP_THINKING, description: "Refinement → Bootstrap → Planning (Deep Thinking) → Development → Review → Memory → Deploy\n\n💡 Tip: Adds development planning documents and uses more tokens; choose for multiple mapped projects (web and API, or multiple microservices)." },
     ],
-    default: RunMode.FAST,
+    default: RunMode.THINKING,
   });
 }
 
@@ -81,19 +88,25 @@ async function determineAction(parsedAction?: RunAction, hasExistingSession?: bo
   });
 }
 
-async function resolveResetOptions(
+export async function resolveResetOptions(
   cwd: string,
   parsed: ReturnType<typeof parseRunArgs>
 ): Promise<{ optionsReset: ResetOptions; steeringMessage: string }> {
+  if (parsed.runId !== undefined && parsed.scope !== undefined) {
+    throw new Error("Use either --scope or --run, not both.");
+  }
   const hasCliResetArgs =
     parsed.scope !== undefined ||
+    parsed.runId !== undefined ||
     parsed.projectPaths.length > 0 ||
     parsed.score !== undefined ||
     parsed.reworks !== undefined;
 
   if (hasCliResetArgs) {
     const optionsReset = {
-      scope: parsed.scope ?? "",
+      scope: parsed.runId !== undefined
+        ? buildDevelopmentScopeFromRun(cwd, parsed.runId)
+        : parsed.scope ?? "",
       projectPaths: parsed.projectPaths.length > 0 ? parsed.projectPaths : [cwd],
       score: parsed.score ?? DEFAULT_SCORE,
       reworks: parsed.reworks ?? DEFAULT_REWORKS,
@@ -290,8 +303,10 @@ export async function cmdRun(cwd: string, runArgs: string[], isFromInit?: boolea
     rmSync(productDir, { recursive: true, force: true });
   }
 
+  options.agentType = await selectAgentRunner(options.agentType)
+
   const agentRunner = AgentRunnerFactory.create({
-    type: options.agentType ?? Runner.CLAUDE_CLI,
+    type: options.agentType,
     model: options.model,
     effort: options.effort,
   })
@@ -331,6 +346,8 @@ export async function cmdRun(cwd: string, runArgs: string[], isFromInit?: boolea
   }
 
   await orchestrator.run();
-  console.log("\n✓ All features completed.");
+  console.log(hasCompletedAllFeatures(fsm.loadBacklog())
+    ? "\n✓ All features completed."
+    : "\n⚠ Pipeline halted before all features completed.");
   orchestrator.tokenReport();
 }

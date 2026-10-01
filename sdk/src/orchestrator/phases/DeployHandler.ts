@@ -3,6 +3,7 @@ import { Phase } from '../types'
 import { AbstractPhaseHandler, Reviewontext } from './AbstractPhaseHandler'
 import { AnsiHelpers } from '../../ui/AnsiHelpers'
 import { buildDocsOrientationSection } from '../utils/PromptHelpers'
+import { findSensitiveGitPaths } from '../utils/GitSensitiveFiles'
 
 export class DeployHandler extends AbstractPhaseHandler {
   async handle(phase: Phase, context: Reviewontext): Promise<Phase | null> {
@@ -54,7 +55,7 @@ export class DeployHandler extends AbstractPhaseHandler {
           continue
         }
 
-        // Generate commit message via LLM (same model/phase_key as Memory/Steering)
+        // Generate commit message via its dedicated phase key.
         const commitMessage = await this.generateCommitMessage(projectPath, context)
         process.stdout.write(
           `  ${AnsiHelpers.dim('commit message:')} ${AnsiHelpers.cyan(commitMessage)}\n`
@@ -117,7 +118,7 @@ export class DeployHandler extends AbstractPhaseHandler {
   }
 
   /**
-   * Calls the LLM (same phaseKey as Memory/Phase E) to generate a Conventional
+   * Calls the LLM to generate a Conventional
    * Commit message based on the staged diff stat for the given project path.
    * Falls back to a deterministic message if the agent returns nothing usable.
    */
@@ -137,7 +138,7 @@ export class DeployHandler extends AbstractPhaseHandler {
       // ignore — diffOutput stays empty
     }
 
-    const orientationSection = buildDocsOrientationSection(context.config.projectPaths, context.workingDir)
+    const orientationSection = buildDocsOrientationSection(context.config.projectPaths, context.workingDir, undefined, undefined, context.config.agentRunner)
 
     const prompt = [
       `## Task`,
@@ -190,7 +191,7 @@ export class DeployHandler extends AbstractPhaseHandler {
       const output = await context.invokeAgent({
         agent: 'harness-kit:developer-devops',
         mode: 'autonomous',
-        phaseKey: 'memory',
+        phaseKey: 'deploy_message',
         prompt,
       })
 
@@ -242,23 +243,7 @@ export class DeployHandler extends AbstractPhaseHandler {
       })
       const stagedFiles = output.split('\n').map(f => f.trim()).filter(Boolean)
 
-      const sensitivePatterns = [
-        /\.env($|\.)/i,
-        /\.pem$/i,
-        /\.key$/i,
-        /\.pfx$/i,
-        /\.p12$/i,
-        /\.crt$/i,
-        /\.cer$/i,
-        /\.kdbx$/i,
-        /id_(rsa|dsa|ecdsa|ed25519)/i,
-        /credentials(\.json)?$/i,
-        /service[-_]account.*\.json$/i,
-        /secrets?\.(json|yaml|yml)$/i,
-        /\.aws\/credentials/i,
-      ]
-
-      return stagedFiles.filter(file => sensitivePatterns.some(pattern => pattern.test(file)))
+      return findSensitiveGitPaths(stagedFiles)
     } catch {
       return []
     }

@@ -99,6 +99,7 @@ HarnessKit supports two primary ways to operate:
 ### Mode A: Interactive Pair-Programming (Human in the Driver's Seat)
 Invoke skills individually during daily development:
 * Run `/harness-kit:project-memory` when onboarding a repo or documenting architectural changes.
+* Run `/harness-kit:pbb-design` when turning an initial product or feature scope into a traceable Product Backlog.
 * Run `/harness-kit:scope-refinement` when planning a complex feature or breaking down a new business domain.
 * Run `/harness-kit:tdd-orchestrator` when executing test-first implementation for specific tasks.
 
@@ -179,6 +180,8 @@ codex plugin add harness-kit@harness-kit
 
 ## 💻 SDK & CLI — `@romabeckman/hrns`
 
+Discover `@romabeckman/hrns`, HarnessKit’s SDK and CLI for repeatable AI-assisted engineering workflows. Use `hrns run` to start the sovereign development loop, or `hrns qa` to plan, execute, and report user-facing acceptance tests with runtime evidence.
+
 For CI/CD pipelines or running sovereign tasks without an open IDE chat session:
 
 ```bash
@@ -196,6 +199,8 @@ hrns run
 
 > 📄 Full SDK documentation: [`sdk/README.md`](sdk/README.md)
 
+> 📘 QA command scope and usage: [`sdk/docs/QA-TESTER-SCOPE.md`](sdk/docs/QA-TESTER-SCOPE.md) — profiles, prerequisites, commands, reports, evidence, and current boundaries.
+
 ---
 
 ## 🛠️ What's Inside
@@ -205,12 +210,14 @@ hrns run
 | Category | Skill | Core Function |
 | --- | --- | --- |
 | **Foundation** | **[Project Memory](skills/project-memory/SKILL.md)** (`project-memory`) | Creates and maintains persistent technical documentation (`docs/adr/`, `.digest.md`, `.graph.json`). The agent's long-term memory. |
+| **Foundation** | **[PBB Design](skills/pbb-design/SKILL.md)** (`pbb-design`) | Transforms initial scope into a traceable Product Backlog, resolving open questions interactively or through provisional autonomous assumptions. |
 | **Foundation** | **[Scope Refinement](skills/scope-refinement/SKILL.md)** (`scope-refinement`) | DDD orchestrator. Maps Bounded Contexts, Aggregates, and Given-When-Then test scenarios before implementation. |
 | **Foundation** | **[TDD Orchestrator](skills/tdd-orchestrator/SKILL.md)** (`tdd-orchestrator`) | Enforces RED → GREEN → REFACTOR. Coordinates test-first implementation and quality gates. |
 | **Orchestration** | **[Autonomous Orchestrator](skills/autonomous-orchestrator/SKILL.md)** (`autonomous-orchestrator`) | Sovereign loop manager. Fully automates execution across planning, TDD, validation, and auto-tuning phases. |
 | **Orchestration** | **[Read UI Prototype](skills/read-ui-prototype/SKILL.md)** (`read-ui-prototype`) | Translates interface prototypes into structured frontend specs for UI engineers. |
 | **Quality Gates** | **[The Grumpy Tech Lead](skills/the-grumpy-tech-lead/SKILL.md)** (`the-grumpy-tech-lead`) | Senior technical reviewer. Uses Socratic questioning to expose architectural vulnerabilities and systemic risks. |
 | **Quality Gates** | **[Adversarial QA](skills/adversarial-qa/SKILL.md)** (`adversarial-qa`) | Executes adversarial boundary and security testing, returning structured JSON verdicts. |
+| **Quality Gates** | **[QA Orchestrator](skills/qa-orchestrator/SKILL.md)** (`qa-orchestrator`) | Collects QA inputs, designs executable scenarios, runs `hrns qa`, and summarizes runtime evidence. |
 | **Optimization** | **[Harness Tracer](skills/harness-tracer/SKILL.md)** (`harness-tracer`) | Records structured execution traces to `docs/harness-history/traces/`. |
 | **Optimization** | **[Harness Evaluator](skills/harness-evaluator/SKILL.md)** (`harness-evaluator`) | Computes composite quality scores and identifies Pareto frontier harness configurations. |
 | **Optimization** | **[Meta-Harness](skills/meta-harness/SKILL.md)** (`meta-harness`) | Diagnoses failure patterns across sessions and proposes targeted skill prompt improvements. |
@@ -244,6 +251,7 @@ Explore the complete knowledge base inside `docs/workflow/`:
 ## 💡 Philosophy
 
 * **Harness Engineering** — Reliability comes from controls and constraints, not raw model size.
+* **Product Backlog Building** — Trace PBIs from real problems, expectations, personas, and functionalities before technical design.
 * **Foundation First** — Strong architecture memory + DDD domain modeling + strict TDD make autonomous execution viable.
 * **Test-Driven Development** — Write tests first. Always. No exceptions.
 * **Domain-Driven Design** — Model the problem space before writing code.

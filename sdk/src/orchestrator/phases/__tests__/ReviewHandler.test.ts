@@ -52,6 +52,10 @@ function makeFsm(feature: Feature = makeFeature(), config: BootstrapConfig = mak
     updateAllFeatureTasks: vi.fn(),
     incrementReworks: vi.fn(),
     writeReworkLog: vi.fn(),
+    existScope: vi.fn().mockReturnValue(true),
+    loadScope: vi.fn().mockReturnValue('test'),
+    existRefinement: vi.fn().mockReturnValue(false),
+    loadRefinement: vi.fn().mockReturnValue(''),
   } as unknown as IFileStateManager
 }
 
@@ -140,6 +144,11 @@ describe('ReviewHandler', () => {
 
     expect(result).toBe(Phase.TRANSITION)
     expect(context.developerSession).toBeUndefined()
+    expect(fsm.updateFeatureStatus).toHaveBeenCalledWith('F001', 'COMPLETED')
+    expect(fsm.appendDecision).toHaveBeenCalledWith(expect.objectContaining({
+      featureId: 'F001',
+      decision: expect.stringContaining('REVIEW skipped'),
+    }))
   })
 
   it('invokes Tech Lead and Adversarial QA without passing developerSession', async () => {
@@ -186,8 +195,54 @@ describe('ReviewHandler', () => {
     expect(qaCall.prompt).toContain('Implemented retry handling. Review concurrency cleanup.')
     expect(tlCall.prompt).toContain('navigation context only')
     expect(qaCall.prompt).toContain('navigation context only')
+    expect(tlCall.prompt).toContain('<tdd_summary>')
+    expect(qaCall.prompt).toContain('<tdd_summary>')
+    expect(tlCall.prompt).toContain('Status: SUCCESS')
+    expect(tlCall.prompt).toContain('Tests: 2 total, 2 passed, 0 failed')
+    expect(tlCall.prompt).toContain('Modified files: src/example.ts')
+    expect(tlCall.prompt).toContain('<specification_provenance>')
+    expect(qaCall.prompt).toContain('<specification_provenance>')
     expect(tlCall.prompt).not.toContain('Read `developerNotes`')
     expect(qaCall.prompt).not.toContain('Read `developerNotes`')
+  })
+
+  it('invokes Tech Lead and Adversarial QA when complexity is LOW', async () => {
+    const fsm = makeFsm()
+    const specsDir = join(workingDir, 'docs', 'specs', 'sdk_core')
+    const context = makeContext(workingDir, fsm, async (inv: any) => {
+      if (inv.phaseKey === 'review_tl') {
+        const data = { featureId: 'F001', score: 0.95, openPoints: [], architectureTip: '' }
+        writeFileSync(join(specsDir, 'TL.json'), JSON.stringify(data))
+        return { success: true, stdout: '', stderr: '', raw: JSON.stringify(data) }
+      }
+
+      const data = { featureId: 'F001', score: 0.95, passedAdversarial: true, vulnerabilities: [], edgeCasesMissed: [] }
+      writeFileSync(join(specsDir, 'QA.json'), JSON.stringify(data))
+      return { success: true, stdout: '', stderr: '', raw: JSON.stringify(data) }
+    }, { complexity: Complexity.LOW })
+
+    await handler.handle(Phase.REVIEW, context)
+
+    expect(context.invokeAgent).toHaveBeenCalledTimes(2)
+    expect(context.invokeAgent).toHaveBeenCalledWith(expect.objectContaining({ phaseKey: 'review_tl' }))
+    expect(context.invokeAgent).toHaveBeenCalledWith(expect.objectContaining({ phaseKey: 'review_adv' }))
+  })
+
+  it('uses REFINEMENT.md content as the exclusive review scope when it exists', async () => {
+    const fsm = makeFsm() as any
+    fsm.existRefinement.mockReturnValue(true)
+    fsm.loadRefinement.mockReturnValue('# Refined review context')
+    const context = makeContext(workingDir, fsm, undefined, { scope: 'scope content must not be used' })
+
+    await handler.handle(Phase.REVIEW, context)
+
+    const prompts = (context.invokeAgent as any).mock.calls.map((call: any[]) => call[0].prompt as string)
+    expect(prompts).toHaveLength(2)
+    for (const prompt of prompts) {
+      expect(prompt).toContain('# Refined review context')
+      expect(prompt).not.toContain('scope content must not be used')
+    }
+    expect(fsm.loadScope).not.toHaveBeenCalled()
   })
 
   it('preserves developerSession on RETRY verdict', async () => {

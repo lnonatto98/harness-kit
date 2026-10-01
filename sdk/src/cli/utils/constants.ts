@@ -13,6 +13,7 @@ COMMANDS
   init      Initialize docs/product files and configure steering rules
   settings  Manage settings (edit|renew|delete)
   diagnose  Run post-orchestration harness diagnosis on pending sessions
+  qa        Run independent runtime acceptance tests or regenerate a report
   candidate Review and apply meta-harness optimization candidates
   report    Print development status and token usage report for the current session
   erase     Preview and erase selected agent CLI project history
@@ -20,15 +21,16 @@ COMMANDS
   help      Show this help message
 
 RUN OPTIONS
-  --agent, -a <type>        Specify agent type (e.g., 'copilot-sdk', 'antigravity-cli')
+  --agent, -a <type>        Specify agent type; prompt opens when omitted (Claude CLI preselected)
   --model, -m <name>        Specify model name for the agent
 
-ACTION (skips interactive prompt)
+ACTION (skips action prompt)
   --reset                   Discard current session and start a new cycle
   --resume                  Continue from last session
 
 RESET OPTIONS (all optional — omitting any triggers the interactive wizard)
   --scope <text>            Project scope / PRD description
+  --run <id>                Generate correction scope from a completed QA run
   --path <dir>              Add a directory to project paths (repeatable)
   --score <0.1-1>           Acceptance score threshold (default: \${DEFAULT_SCORE})
   --reworks <1-10>          Max rework cycles before cascade fail (default: \${DEFAULT_REWORKS})
@@ -39,17 +41,17 @@ RESUME OPTIONS
 
 EXECUTION MODE
   --mode, -M <mode>         Controls which phases run and which complexity is forced:
-                              quick   — Bootstrap → Planning → Development → Deploy (skip Review + Memory)
-                              fast    — All phases, simplify planning and only QA review
-                              default — All phases, LLM decide complexity [default]
-                              slow    — All phases, forced to high planning and deep review
+                              quick        — Bootstrap → Planning → Development → Memory → Deploy (skip Review)
+                              fast         — All phases, simplified planning, Tech Lead + QA review
+                              thinking     — Refinement → Bootstrap → Planning, LOW complexity [default]
+                              deep-thinking — All phases, forced to high planning and deep review
   --complexity, -c <level>  Explicit complexity override: LOW | HIGH | AUTO
 
 SKIP OPTIONS
   --skip-validation         Skip Phase REVIEW (code review + QA) - jump directly to TRANSITION
   --skip-memory             Skip Phase MEMORY (project-memory) — jump directly to TRANSITION
   --skip-deploy             Skip Phase DEPLOY (git stage/commit/push) — halt after TRANSITION
-  --refine                  Enable interactive pre-planning REFINEMENT phase (default: false)
+  --refine                  Enable interactive pre-bootstrap REFINEMENT phase (default: false)
 
 OPTIONS
   --help, -h                Show this help message
@@ -63,11 +65,13 @@ EXAMPLES
   hrns run --resume --steering "focus on security hardening"
   hrns run --debug --reset --scope "My project"
   hrns run --reset --scope "Fix login bug" --path ./api --mode fast
+  hrns run --reset --run orders-20260911 --mode fast
   hrns run --reset --scope "New payment flow" --path ./api --mode slow
   hrns run --reset --scope "My app" --path ./api --mode quick
   hrns run --reset --scope "My app" --path ./api --complexity LOW
   hrns run --reset --scope "My app" --path ./api --skip-deploy
   hrns diagnose
+  hrns qa run --scope "Test the orders endpoint" --target http://localhost:3000
   hrns candidate list
   hrns candidate review v001
   hrns report
@@ -87,17 +91,18 @@ DESCRIPTION
   Start a new autonomous orchestration cycle or resume an existing session.
 
 RUN OPTIONS
-  --agent, -a <type>        Specify agent runner (e.g. 'claude-cli', 'copilot-cli', 'antigravity-cli')
+  --agent, -a <type>        Specify agent runner; prompt opens when omitted (Claude CLI preselected)
   --model, -m <name>        Specify model name for the agent
   --effort, -e <level>      Reasoning effort level (low | medium | high | xhigh)
   --complexity, -c <level>  Explicit complexity override: LOW | HIGH | AUTO
 
-ACTION (skips interactive prompt)
+ACTION (skips action prompt)
   --reset                   Discard current session and start a new cycle
   --resume                  Continue from last saved session
 
 RESET OPTIONS (omitting triggers wizard when reset is chosen)
   --scope <text>            Project scope / PRD description
+  --run <id>                Generate correction scope from a completed QA run
   --path <dir>              Add a directory to project paths (repeatable)
   --score <0.1-1>           Acceptance score threshold (default: ${DEFAULT_SCORE})
   --reworks <1-10>          Max rework cycles before cascade fail (default: ${DEFAULT_REWORKS})
@@ -108,9 +113,9 @@ RESUME OPTIONS
 
 EXECUTION MODE
   --mode, -M <mode>         Controls phase execution and forced complexity:
-                              quick   — Bootstrap → Planning → Development → Deploy (skip Review + Memory)
-                              fast    — All phases, simplified planning, QA review only
-                              default — All phases, LLM decides complexity [default]
+                              quick   — Bootstrap → Planning → Development → Memory → Deploy (skip Review)
+                              fast    — All phases, simplified planning, Tech Lead + QA review
+                              thinking — Refinement → Bootstrap → Planning, LOW complexity [default]
                               slow    — All phases, forced high planning and deep review
   --complexity, -c <level>  Explicit complexity override: LOW | HIGH | AUTO
 
@@ -118,7 +123,7 @@ SKIP OPTIONS
   --skip-validation         Skip Phase REVIEW (code review + QA) — jump directly to TRANSITION
   --skip-memory             Skip Phase MEMORY (project-memory) — jump directly to TRANSITION
   --skip-deploy             Skip Phase DEPLOY (git stage/commit/push) — halt after TRANSITION
-  --refine                  Enable interactive pre-planning REFINEMENT phase (default: false)
+  --refine                  Enable interactive pre-bootstrap REFINEMENT phase (default: false)
 
 GENERAL OPTIONS
   --help, -h                Show this help message
@@ -127,10 +132,11 @@ GENERAL OPTIONS
 EXAMPLES
   hrns run
   hrns run --diagnose
-  hrns run --agent copilot-cli --model gpt-5.6-luna
+  hrns run --agent copilot-cli --model gpt-6-luna
   hrns run --reset --scope "Build a REST API" --path ./api --path ./web --score 0.9
   hrns run --resume --steering "focus on security hardening"
   hrns run --reset --scope "Fix bug" --path ./api --mode fast
+  hrns run --reset --run orders-20260911 --mode fast
 `
 
 export const HELP_INIT = `
@@ -195,7 +201,7 @@ DESCRIPTION
   sessions in batches of 3, and updates trace history and candidate improvements.
 
 OPTIONS
-  --agent, -a <type>        Specify agent runner (e.g. 'claude-cli', 'copilot-cli', 'antigravity-cli')
+  --agent, -a <type>        Specify agent runner; prompt opens when omitted (Claude CLI preselected)
   --model, -m <name>        Override model name (defaults to DefaultSettings.ts diagnose model)
   --effort, -e <level>      Override reasoning effort level (defaults to DefaultSettings.ts diagnose effort)
   --batch-size <number>     Number of pending sessions to process per batch (default: 3)
@@ -205,8 +211,57 @@ OPTIONS
 EXAMPLES
   hrns diagnose
   hrns diagnose --agent copilot-cli
-  hrns diagnose --model gpt-5.6-luna --effort xhigh
+  hrns diagnose --model gpt-6-luna --effort xhigh
   hrns diagnose --batch-size 5
+`
+
+export const HELP_QA = `
+@romabeckman/harness-kit — hrns qa
+
+USAGE
+  hrns qa run [options]
+  hrns qa report [--run <id>] [--output <format>] [options]
+  hrns qa exploratory [--target <url>] [--project <path>]
+  hrns qa auth [--project <path>]   Add one authentication profile interactively
+  hrns qa [options]          Alias for hrns qa run
+
+OPTIONS
+  --scope <text>           Open QA scope; omit to choose short input or editor form
+  --scenario <text>        Optional detailed scenario; repeatable
+  --project <path>         Project to inspect and test (default: current directory)
+  --agent <runner>         Agent runner; prompt opens when omitted (Claude CLI preselected)
+  --model <model>          Model override for QA phases
+  --effort <level>         Reasoning effort override for QA phases
+  --analysis               After execution, inspect evidence and add and execute material missing scenarios before reporting
+  --report                 Generate and render the report during QA run
+  --run <id>               Completed run to report; omit for interactive selection
+  --output <format>         Report output: json, html, markdown, send-to-developer (default: json)
+  --target <url>            Target application URL
+  --auth <profile>          Authentication profile from .harness-kit/auth.json
+  --profile <api|web|web-game|mobile-web|accessibility|mcp|cli|websocket|security|full>
+  --debug                   Expose runner arguments, prompts, sessions, and full errors
+
+EXPLORATORY
+  Executes every scenario from the latest version of every saved QA plan.
+  Plans run sequentially. A global JSON report is always saved under
+  docs/qa/exploratory/<id>/report.json and printed to stdout.
+
+AUTH
+  Adds one profile through a form. Choose env storage for a reference-only
+  profile or insecure storage to persist entered credentials in auth.json.
+  Insecure storage always shows a warning and requires confirmation.
+
+EXAMPLES
+  hrns qa run --scope "Test endpoint X" --target http://localhost:3000
+  hrns qa run --report --scope "Test endpoint X" --target http://localhost:3000
+  hrns qa run --scope "Validate checkout" --scenario "A valid card completes payment" --profile web
+  hrns qa run --debug --scope "Test endpoint X" --target http://localhost:3000
+  hrns qa report --run orders-20260911
+  hrns qa report --run orders-20260911 --output html
+  hrns qa report
+  hrns qa exploratory --target http://localhost:3000
+  hrns qa exploratory --auth qa-user --target http://localhost:3000
+  hrns qa auth
 `
 
 export const HELP_CANDIDATE = `
@@ -224,9 +279,10 @@ ACTIONS
   review [id] --auto        Apply candidate autonomously via LLM using phaseKey: diagnose
 
 OPTIONS
+  --agent, -a <type>        Select agent runner; interactive selection opens when omitted
   --model, -m <name>        Override model name for autonomous promotion
   --effort, -e <level>      Override reasoning effort level
-  --non-interactive, --auto Apply candidate autonomously without interactive runner
+  --non-interactive, --auto Apply candidate autonomously; pass --agent to skip runner selection
   --help, -h                Show this help message
 
 EXAMPLES
@@ -296,6 +352,7 @@ export const COMMAND_HELP: Record<string, string> = {
   init: HELP_INIT,
   settings: HELP_SETTINGS,
   diagnose: HELP_DIAGNOSE,
+  qa: HELP_QA,
   candidate: HELP_CANDIDATE,
   report: HELP_REPORT,
   erase: HELP_ERASE,

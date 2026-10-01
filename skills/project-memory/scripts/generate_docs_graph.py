@@ -12,6 +12,8 @@ import json
 import sys
 from pathlib import Path
 
+from document_graph import graph_block
+
 ROUTING_FIELDS = (
     "entrypoints",
     "registration_files",
@@ -20,6 +22,7 @@ ROUTING_FIELDS = (
     "test_files",
 )
 MICROGRAPH_FIELDS = ("node_id", "domain", "implements", "tested_by", *ROUTING_FIELDS)
+PROJECT_RELATIONS = {"depends_on", "provides_to"}
 
 
 def validate_feature_micrograph(data, node_id: str, file_path: Path, base_dir: Path):
@@ -63,14 +66,16 @@ def parse_markdown_file(file_path: Path, base_dir: Path):
         fm_text = fm_match.group(1)
         try:
             import yaml
-            frontmatter = yaml.safe_load(fm_text) or {}
-        except Exception:
-            # Fallback para regex simples
-            for line in fm_text.splitlines():
-                line = line.strip()
-                if ":" in line and not line.startswith("-"):
-                    k, v = line.split(":", 1)
-                    frontmatter[k.strip()] = v.strip().strip("'\"")
+        except ImportError as error:
+            raise ValueError("PyYAML is required; install it with 'python -m pip install PyYAML'") from error
+        try:
+            frontmatter = yaml.safe_load(fm_text)
+        except yaml.YAMLError as error:
+            raise ValueError(f"Invalid YAML frontmatter in {file_path}: {error}") from error
+        if frontmatter is None:
+            frontmatter = {}
+        if not isinstance(frontmatter, dict):
+            raise ValueError(f"YAML frontmatter must be an object in {file_path}")
 
     # Extrair título principal (# Title)
     title = file_path.stem.replace("_", " ").replace("-", " ").title()
@@ -81,11 +86,11 @@ def parse_markdown_file(file_path: Path, base_dir: Path):
         title = frontmatter["title"]
 
     doc_type = frontmatter.get("doc_type")
-    if not doc_type:
+    if "feature/" in rel_path:
+        doc_type = "feature"
+    elif not doc_type:
         if "adr/" in rel_path:
             doc_type = "adr"
-        elif "feature/" in rel_path:
-            doc_type = "feature"
         elif "specs/" in rel_path:
             doc_type = "spec"
         else:
@@ -111,31 +116,109 @@ def parse_markdown_file(file_path: Path, base_dir: Path):
     edges = []
     # 1. Processar edges do YAML frontmatter
     fm_edges = frontmatter.get("edges", [])
-    if isinstance(fm_edges, list):
-        for edge in fm_edges:
-            if isinstance(edge, dict) and "target" in edge:
-                edges.append({
-                    "source": node_id,
-                    "target": edge["target"],
-                    "relation": edge.get("relation", "references")
-                })
 
-    # 2. Processar bloco embutido ```graph
-    graph_block_match = re.search(r"```graph\s*\n(.*?)\n```", content, re.DOTALL)
-    if graph_block_match:
-        try:
-            gb_data = json.loads(graph_block_match.group(1))
-            if doc_type == "feature":
-                validate_feature_micrograph(gb_data, node_id, file_path, base_dir)
-            for relation in ("implements", "depends_on", "tested_by"):
-                targets = gb_data.get(relation, [])
-                if not isinstance(targets, list):
-                    targets = [targets]
-                for target in targets:
-                    if target:
-                        edges.append({"source": node_id, "target": target, "relation": relation})
-        except json.JSONDecodeError as error:
-            raise ValueError(f"Invalid micrograph JSON in {file_path}: {error.msg}") from error
+    if doc_type == "feature":
+        must_read = []
+        optional_docs = []
+        seen_routing_targets = {}
+
+        if not isinstance(fm_edges, list):
+            raise ValueError(f"Feature frontmatter 'edges' must be an array in {file_path}")
+
+        for edge in fm_edges:
+            if not isinstance(edge, dict) or "target" not in edge:
+                raise ValueError(f"Invalid feature frontmatter edge in {file_path}")
+
+            target = edge["target"]
+            if not isinstance(target, str) or not target.strip():
+                raise ValueError(f"Invalid edge target in {file_path}")
+
+            relation = edge.get("relation", "references")
+            edges.append({
+                "source": node_id,
+                "target": target,
+                "relation": relation
+            })
+
+            has_read = "read" in edge
+            has_when = "when" in edge
+            read_val = edge.get("read")
+            when_val = edge.get("when")
+
+            if has_read and read_val not in ("must", "optional"):
+                raise ValueError(
+                    f"Invalid read value '{read_val}' for target '{target}' in {file_path}. Must be 'must' or 'optional'."
+                )
+
+            if has_read and target in seen_routing_targets:
+                if seen_routing_targets[target] != read_val:
+                    raise ValueError(
+                        f"Target '{target}' cannot be classified as both must and optional in {file_path}"
+                    )
+                raise ValueError(
+                    f"Duplicate routing target '{target}' in {file_path}"
+                )
+
+            if read_val == "must":
+                if has_when:
+                    raise ValueError(
+                        f"Target '{target}' with 'read: must' cannot include 'when' in {file_path}"
+                    )
+                seen_routing_targets[target] = "must"
+                must_read.append(target)
+
+            elif read_val == "optional":
+                if not has_when or when_val is None or not isinstance(when_val, str) or not when_val.strip():
+                    raise ValueError(
+                        f"Missing required 'when' for optional read target '{target}' in {file_path}"
+                    )
+                when_clean = when_val.strip()
+                if len(when_clean) > 300:
+                    raise ValueError(
+                        f"'when' exceeds 300 characters ({len(when_clean)} chars) for optional target '{target}' in {file_path}"
+                    )
+                seen_routing_targets[target] = "optional"
+                optional_docs.append({
+                    "target": target,
+                    "description": when_clean
+                })
+            elif has_when:
+                raise ValueError(
+                    f"Target '{target}' in {file_path} specifies 'when' without 'read: optional'"
+                )
+
+        node["related_docs"] = {
+            "must_read": must_read,
+            "optional": optional_docs
+        }
+    else:
+        # Non-feature nodes: omit related_docs
+        if isinstance(fm_edges, list):
+            for edge in fm_edges:
+                if isinstance(edge, dict) and "target" in edge:
+                    edges.append({
+                        "source": node_id,
+                        "target": edge["target"],
+                        "relation": edge.get("relation", "references")
+                    })
+
+    # Read the same fenced graph used by the ontology validator.
+    try:
+        gb_data = graph_block(content)
+    except ValueError as error:
+        raise ValueError(f"Invalid micrograph in {file_path}: {error}") from error
+    if doc_type == "feature":
+        if gb_data is None:
+            raise ValueError(f"Missing required feature micrograph in {file_path}")
+        validate_feature_micrograph(gb_data, node_id, file_path, base_dir)
+    if gb_data is not None:
+        for relation in ("implements", "depends_on", "tested_by"):
+            targets = gb_data.get(relation, [])
+            if not isinstance(targets, list):
+                targets = [targets]
+            for target in targets:
+                if target:
+                    edges.append({"source": node_id, "target": target, "relation": relation})
 
     return node, edges
 
@@ -173,6 +256,20 @@ def build_docs_graph(docs_dir: Path):
             seen_edges.add(edge_key)
             unique_edges.append(edge)
 
+    # Validate routing targets for feature nodes
+    for node in sorted(nodes, key=lambda n: n["id"]):
+        if "related_docs" in node:
+            for target in sorted(node["related_docs"].get("must_read", [])):
+                if target not in node_ids:
+                    raise ValueError(
+                        f"Unresolved routing target '{target}' in '{node['id']}'"
+                    )
+            for item in sorted(node["related_docs"].get("optional", []), key=lambda x: x["target"]):
+                if item["target"] not in node_ids:
+                    raise ValueError(
+                        f"Unresolved routing target '{item['target']}' in '{node['id']}'"
+                    )
+
     unresolved = sorted(
         (edge for edge in unique_edges if edge["target"] not in node_ids),
         key=lambda edge: (edge["source"], edge["relation"], edge["target"]),
@@ -191,6 +288,37 @@ def build_docs_graph(docs_dir: Path):
         "edges": unique_edges
     }
 
+
+def load_related_projects(graph_path: Path):
+    if not graph_path.exists():
+        return []
+
+    existing_graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    if not isinstance(existing_graph, dict):
+        raise ValueError(f"Invalid graph object in {graph_path}")
+
+    related_projects = existing_graph.get("related_projects", [])
+    if not isinstance(related_projects, list):
+        raise ValueError(f"related_projects must be an array in {graph_path}")
+
+    seen = set()
+    normalized = []
+    for entry in related_projects:
+        if not isinstance(entry, dict) or set(entry) != {"key", "relation"}:
+            raise ValueError(f"Invalid related project entry in {graph_path}")
+        key = entry["key"]
+        relation = entry["relation"]
+        if not isinstance(key, str) or not key.strip() or not isinstance(relation, str) or relation not in PROJECT_RELATIONS:
+            raise ValueError(f"Invalid related project key or relation in {graph_path}")
+        normalized_key = key.strip()
+        pair = (normalized_key, relation)
+        if pair in seen:
+            raise ValueError(f"Duplicate related project entry in {graph_path}: {pair}")
+        seen.add(pair)
+        normalized.append({"key": normalized_key, "relation": relation})
+
+    return sorted(normalized, key=lambda entry: (entry["key"], entry["relation"]))
+
 def main():
     docs_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("docs")
     
@@ -198,8 +326,9 @@ def main():
         print(f"Erro: Diretório '{docs_path}' não encontrado.", file=sys.stderr)
         sys.exit(1)
 
-    graph_data = build_docs_graph(docs_path)
     output_file = docs_path / ".graph.json"
+    graph_data = build_docs_graph(docs_path)
+    graph_data["related_projects"] = load_related_projects(output_file)
 
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(graph_data, f, separators=(',', ':'), ensure_ascii=False)

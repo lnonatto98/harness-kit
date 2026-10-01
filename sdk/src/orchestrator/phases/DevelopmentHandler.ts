@@ -10,7 +10,7 @@ import {
   formatProjectPathsList,
   formatTasksList,
 } from '../utils/PromptHelpers'
-import { getSpecsDir } from '../utils/PhaseFileUtils'
+import { getPlanningSource, getSpecsDir } from '../utils/PhaseFileUtils'
 import type { Feature, Task } from '../../file-state/types'
 import type { DevelopmenPayload } from '../../context-assembler/types'
 import { PhaseDecisionLogger } from '../services/PhaseDecisionLogger'
@@ -26,7 +26,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
     if (!activeFeature) throw new Error(`Illegal state: phase ${phase} requires an active feature but none is set`)
 
     const tddOutputPath = join(getSpecsDir(context.workingDir, activeFeature.domain), 'TDD-OUTPUT.json')
-    let pendingTasks = context.fsm.getPendingTasks(activeFeature.id)
+    const pendingTasks = context.fsm.getPendingTasks(activeFeature.id)
 
     const shouldGoToReview = this.shouldGoToReview(activeFeature, tddOutputPath, context, pendingTasks)
     if (shouldGoToReview) {
@@ -117,7 +117,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
     const rulesSection = formatRulesSection(payload.steeringRules)
 
     const workingDir = getSpecsDir(context.workingDir, payload.domain)
-    const orientationSection = buildDocsOrientationSection(payload.projectPaths, context.workingDir)
+    const orientationSection = buildDocsOrientationSection(payload.projectPaths, context.workingDir, undefined, undefined, context.config.agentRunner)
 
     const tasksSection = [
       `<tasks>`,
@@ -128,7 +128,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
 
     return [
       `## Objective`,
-      `Execute the TDD workflow for the tasks listed below. Follow steps 1, 2, 3, 4 and 6 of the \`harness-kit:tdd-orchestrator\` skill sequentially without pausing.`,
+      `Execute the TDD workflow for the tasks listed below. Follow all steps of the \`harness-kit:tdd-orchestrator\` skill sequentially without pausing.`,
       ``,
       `<skill_context>`,
       `Invoke the \`harness-kit:tdd-orchestrator\` skill before starting.`,
@@ -144,11 +144,10 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
       `<strict_rules>`,
       `- You MUST read \`docs/.digest.md\` and \`docs/.graph.json\` (or fallback to \`docs/README.md\`, \`docs/adr/ARCHITECTURE.md\`, and \`docs/adr/TESTS.md\`) in each project before writing any code`,
       `- Each project MUST have its own \`docs/adr\` and \`docs/feature\` folders where all ADRs and features are stored.`,
-      `- If exists "Socratic Questions" section in the problem space, use it to reflect and write the code in the best possible way.`,
+      `- Read the project-scoped Refinement Questions and Answers in the matching tactical design and treat confirmed answers as implementation constraints.`,
       `- Execute autonomously without pausing or asking for confirmation`,
       `- NEVER change correct tests to force passing`,
       `- NEVER run package installation commands automatically — instruct the user instead`,
-      `- CRITICAL: You MUST NOT run \`step 5\` (Update Documentation)`,
       `</strict_rules>`,
       ``,
       `<rules>`,
@@ -176,7 +175,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
       `</expected_output>`,
       ``,
       `<development_specifications>`,
-      ...this.buildSpecsSection(payload, context.workingDir),
+      ...this.buildSpecsSection(payload, context.workingDir, context.config.agentRunner),
       `</development_specifications>`,
       ``,
       `<inputs>`,
@@ -205,7 +204,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
     const rulesSection = formatRulesSection(payload.steeringRules)
 
     const workingDir = getSpecsDir(context.workingDir, payload.domain)
-    const orientationSection = buildDocsOrientationSection(payload.projectPaths, context.workingDir)
+    const orientationSection = buildDocsOrientationSection(payload.projectPaths, context.workingDir, undefined, undefined, context.config.agentRunner)
 
     const tasksSection = [
       `<tasks>`,
@@ -218,7 +217,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
 
     return [
       `## Objective`,
-      `Execute the TDD workflow for the tasks listed below. Follow steps 1, 2, 3, 4 and 6 of the \`harness-kit:tdd-orchestrator\` skill sequentially without pausing.`,
+      `Execute the TDD workflow for the tasks listed below. Follow all steps of the \`harness-kit:tdd-orchestrator\` skill sequentially without pausing.`,
       ``,
       `<skill_context>`,
       `Invoke the \`harness-kit:tdd-orchestrator\` skill before starting.`,
@@ -234,11 +233,10 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
       `<strict_rules>`,
       `- You MUST read \`docs/.digest.md\` and \`docs/.graph.json\` (or fallback to \`docs/README.md\`, \`docs/adr/ARCHITECTURE.md\`, and \`docs/adr/TESTS.md\`) in each project before writing any code`,
       `- Each project MUST have its own \`docs/adr\` and \`docs/feature\` folders where all ADRs and features are stored.`,
-      `- If exists "Socratic Questions" section in the problem space, use it to reflect and write the code in the best possible way.`,
+      `- Read the project-scoped Refinement Questions and Answers in the matching tactical design and treat confirmed answers as implementation constraints.`,
       `- Execute autonomously without pausing or asking for confirmation`,
       `- NEVER change correct tests to force passing`,
       `- NEVER run package installation commands automatically — instruct the user instead`,
-      `- CRITICAL: You MUST NOT run \`step 5\` (Update Documentation)`,
       `</strict_rules>`,
       ``,
       `<rules>`,
@@ -266,7 +264,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
       `</expected_output>`,
       ``,
       `<development_specifications>`,
-      ...this.buildSpecsSection(payload, context.workingDir),
+      ...this.buildSpecsSection(payload, context.workingDir, context.config.agentRunner),
       `</development_specifications>`,
       ``,
       `<inputs>`,
@@ -286,6 +284,8 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
   buildContinuationReworkPrompt(payload: DevelopmenPayload, context: Reviewontext): string {
     const tasksList = formatTasksList(payload.tasks)
     const workingDir = getSpecsDir(context.workingDir, payload.domain)
+    const planningSource = getPlanningSource(context)
+    const projectPathsList = formatProjectPathsList(payload.projectPaths)
     const reworkSection = this.buildReworkSection(payload, context)
 
     const tasksSection = [
@@ -297,7 +297,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
 
     return [
       `## Objective`,
-      `Address the findings from the latest review. Follow steps 1, 2, 3, 4 and 6 of the \`harness-kit:tdd-orchestrator\` skill sequentially without pausing.`,
+      `Address the findings from the latest review. Follow all steps of the \`harness-kit:tdd-orchestrator\` skill sequentially without pausing.`,
       ``,
       `<skill_context>`,
       `Invoke the \`harness-kit:tdd-orchestrator\` skill before starting.`,
@@ -315,9 +315,17 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
       `- Run all tests (old + new) — all must pass`,
       `- NEVER change correct tests to force passing`,
       `- NEVER run package installation commands automatically — instruct the user instead`,
-      `- CRITICAL: You MUST NOT run \`step 5\` (Update Documentation)`,
       `- Execute autonomously without pausing or asking for confirmation`,
       `</strict_rules>`,
+      ``,
+      `<context_anchors>`,
+      `Feature: ${payload.featureId} — ${payload.featureTitle}`,
+      `${planningSource.label}: ${planningSource.path}`,
+      `Specifications: ${workingDir}`,
+      `<project_paths>`,
+      projectPathsList,
+      `</project_paths>`,
+      `</context_anchors>`,
       ``,
       reworkSection,
       tasksSection,
@@ -349,7 +357,7 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
       `<rework>`,
       `You are fixing findings from previous runs. Read \`${reworkLogPath}\` for Tech Lead and QA feedback.`,
       ``,
-      ...inlineOrReference('rework_log_content', reworkLogContent, reworkLogPath, 'markdown', 'always'),
+      ...inlineOrReference('rework_log_content', reworkLogContent, reworkLogPath, 'markdown', 'always', context.config.agentRunner),
       ``,
       `MANDATORY STEPS:`,
       `1. Read \`${reworkLogPath}\` completely — every item is a required fix.`,
@@ -376,20 +384,26 @@ export class DevelopmentHandler extends AbstractPhaseHandler {
     ].join('\n')
   }
 
-  private buildSpecsSection(payload: DevelopmenPayload, workingDir: string): string[] {
+  private buildSpecsSection(payload: DevelopmenPayload, workingDir: string, activeRunner?: Reviewontext['config']['agentRunner']): string[] {
     const specsDir = join(workingDir, 'docs', 'specs', payload.domain)
     const specs = payload.specsContent
     if (!specs) return []
 
-    const sections: string[] = []
+    const sections: string[] = [
+      `<specification_provenance>`,
+      `- 001/002 are domain-wide context shared by all projects in this feature.`,
+      `- Each 003/004 file is project-specific; \`<!-- File: ... -->\` markers identify ownership when content is concatenated.`,
+      `- Match each task's [project] tag to its project path and owning 003/004 artifacts.`,
+      `</specification_provenance>`,
+    ]
 
     if (!payload.isRetry) {
-      sections.push(...inlineOrReference('problem_space', specs.problemSpace, join(specsDir, '001-problem-space.md'), 'markdown'))
-      sections.push(...inlineOrReference('context_map', specs.contextMap, join(specsDir, '002-context-map.md'), 'markdown'))
+      sections.push(...inlineOrReference('problem_space', specs.problemSpace, join(specsDir, '001-problem-space.md'), 'markdown', 'never', activeRunner))
+      sections.push(...inlineOrReference('context_map', specs.contextMap, join(specsDir, '002-context-map.md'), 'markdown', 'never', activeRunner))
     }
 
-    sections.push(...inlineOrReference('tactical_design', specs.tacticalDesign, join(specsDir, '003-*-tactical-design.md'), 'markdown', 'always'))
-    sections.push(...inlineOrReference('test_scenarios', specs.testScenarios, join(specsDir, '004-*-test-scenarios.md'), 'markdown', 'always'))
+    sections.push(...inlineOrReference('tactical_design', specs.tacticalDesign, join(specsDir, '003-*-tactical-design.md'), 'markdown', 'always', activeRunner))
+    sections.push(...inlineOrReference('test_scenarios', specs.testScenarios, join(specsDir, '004-*-test-scenarios.md'), 'markdown', 'always', activeRunner))
 
     return sections
   }

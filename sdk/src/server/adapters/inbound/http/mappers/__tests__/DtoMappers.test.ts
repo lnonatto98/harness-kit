@@ -42,15 +42,36 @@ describe('DtoMappers Anti-Corruption Layer (ACL)', () => {
     }
   })
 
-  it('UT-1.2.8: Maps mode ("quick", "fast", "thinking") to OrchestratorConfig using resolveMode', () => {
+  it.each(['quick', 'thinking', 'unknown', null])('rejects mode override %s', (mode) => {
     process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
-    const quickConfig = DtoMappers.toOrchestratorConfig({ scope: 'quick-test', project: 'backend', agent: 'claude-cli', mode: 'quick', idempotencyKey: 'idem-1' })
-    expect(quickConfig.skipValidation).toBe(true)
-    expect(quickConfig.skipMemory).toBe(true)
+    expect(() => DtoMappers.toOrchestratorConfig({
+      scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', mode,
+    } as any)).toThrowError(HttpServerError)
+  })
 
-    const fastConfig = DtoMappers.toOrchestratorConfig({ scope: 'fast-test', project: 'backend', agent: 'claude-cli', mode: 'fast', idempotencyKey: 'idem-2' })
-    expect(fastConfig.complexity).toBe('LOW')
-    expect(fastConfig.skipValidation).toBe(false)
+  it.each(['skipValidation', 'skipMemory', 'enableRefinement'])('rejects %s overrides', (field) => {
+    process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
+    for (const value of [true, false]) {
+      expect(() => DtoMappers.toOrchestratorConfig({
+        scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', [field]: value,
+      })).toThrowError(HttpServerError)
+    }
+  })
+
+  it.each([true, false, null])('rejects refine=%s', (refine) => {
+    expect(() => DtoMappers.toOrchestratorConfig({
+      scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', refine,
+    } as any)).toThrowError(HttpServerError)
+  })
+
+  it.each([undefined, 'fast'])('always applies fast configuration for mode %s', (mode) => {
+    process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
+    const config = DtoMappers.toOrchestratorConfig({
+      scope: 'test', project: 'backend', agent: 'claude-cli', idempotencyKey: 'idem-1', mode,
+    })
+    expect(config).toMatchObject({
+      complexity: 'LOW', skipValidation: false, skipMemory: false, enableRefinement: false,
+    })
   })
 
   it('UT-1.2.9: Normalizes workspace paths from project list', () => {
@@ -159,26 +180,48 @@ describe('DtoMappers Anti-Corruption Layer (ACL)', () => {
     }
   })
 
-  it('Rejects skipDeploy parameter with HttpServerError(400)', () => {
+  it('rejects skipDeploy with SKIP_DEPLOY_NOT_ALLOWED', () => {
     process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
-    expect(() =>
-      DtoMappers.toOrchestratorConfig({ idempotencyKey: 'idem-1', scope: 'test', project: 'backend', agent: 'claude-cli', skipDeploy: true } as any)
-    ).toThrowError(HttpServerError)
-
+    const request = { idempotencyKey: 'idem-1', scope: 'test', project: 'backend', agent: 'claude-cli' }
+    expect(() => DtoMappers.toOrchestratorConfig({ ...request, skipDeploy: true }))
+      .toThrowError(HttpServerError)
     try {
-      DtoMappers.toOrchestratorConfig({ idempotencyKey: 'idem-1', scope: 'test', project: 'backend', agent: 'claude-cli', skipDeploy: true } as any)
-    } catch (err: any) {
-      expect(err.statusCode).toBe(400)
-      expect(err.code).toBe('SKIP_DEPLOY_NOT_ALLOWED')
+      DtoMappers.toOrchestratorConfig({ ...request, skipDeploy: true })
+    } catch (error: any) {
+      expect(error.code).toBe('SKIP_DEPLOY_NOT_ALLOWED')
     }
   })
 
-  it('Applies default values: reworks=2, mode=fast, skipDeploy=false', () => {
+  it('Applies default values: reworks=2, mode=fast, SDK deploy skipped', () => {
     process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
     const config = DtoMappers.toOrchestratorConfig({ idempotencyKey: 'idem-1', scope: 'my-scope', project: 'backend', agent: 'claude-cli' })
     expect(config.reworks).toBe(2)
-    expect(config.skipDeploy).toBe(false)
+    expect(config.skipDeploy).toBe(true)
     expect(config.complexity).toBe('LOW') // default mode 'fast' maps complexity to LOW
+  })
+
+  it('passes score and initial steering to the orchestrator', () => {
+    process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
+    const config = DtoMappers.toOrchestratorConfig({
+      idempotencyKey: 'idem-score', scope: 'task', project: 'backend', agent: 'claude-cli',
+      score: 0.88, steeringMessage: 'Keep API compatible',
+    })
+    expect(config.score).toBe(0.88)
+    expect(config.initialRules).toBe('Keep API compatible')
+  })
+
+  it('rejects a project list until every project has its own isolated worktree', () => {
+    process.env.PROJECT_MAPPINGS = JSON.stringify({ backend: '/tmp/backend', frontend: '/tmp/frontend' })
+    expect(() => DtoMappers.toOrchestratorConfig({
+      idempotencyKey: 'idem-multi', scope: 'task', project: ['backend', 'frontend'], agent: 'claude-cli',
+    })).toThrowError(HttpServerError)
+  })
+
+  it('rejects invalid score and mode values at the HTTP boundary', () => {
+    process.env.PROJECT_BACKEND_PATH = '/tmp/backend'
+    const base = { idempotencyKey: 'idem-invalid', scope: 'task', project: 'backend', agent: 'claude-cli' }
+    expect(() => DtoMappers.toOrchestratorConfig({ ...base, score: 88 })).toThrowError(HttpServerError)
+    expect(() => DtoMappers.toOrchestratorConfig({ ...base, mode: 'unknown' })).toThrowError(HttpServerError)
   })
   
   it('SEC-SCOPE: Rejects scope exceeding maximum length', () => {

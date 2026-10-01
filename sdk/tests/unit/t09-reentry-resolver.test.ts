@@ -45,6 +45,17 @@ describe('T09 — ReentryResolver', () => {
       })
       expect(ReentryResolver.resolve(state)).toBe(Phase.MEMORY)
     })
+
+    it.each([Phase.BOOTSTRAP, Phase.REFINEMENT])(
+      'starts at PLANNING instead of stale %s when backlog already contains features',
+      (currentPhase) => {
+        const state = makeState({
+          config: { ...defaultConfig, currentPhase },
+          activeFeature: { ...baseFeature, status: 'NOT_STARTED' },
+        })
+        expect(ReentryResolver.resolve(state)).toBe(Phase.PLANNING)
+      },
+    )
   })
 
   describe('TS-U-38: Fresh state resolves to BOOTSTRAP', () => {
@@ -88,6 +99,29 @@ describe('T09 — ReentryResolver', () => {
       })
       expect(ReentryResolver.resolve(state)).toBe(Phase.REVIEW)
     })
+  })
+
+  it('returns DEVELOPMENT when tasks are complete but the TDD handoff is absent or invalid', () => {
+    const state = makeState({
+      specFilesPresent: true,
+      tddOutputPresent: false,
+      allTasksCompleted: true,
+      tasks: [{ ...baseTask, status: 'COMPLETED' }],
+      activeFeature: { ...baseFeature, status: 'IN_PROGRESS' },
+    })
+    expect(ReentryResolver.resolve(state)).toBe(Phase.DEVELOPMENT)
+  })
+
+  it('does not honor a persisted REVIEW phase without a valid TDD handoff', () => {
+    const state = makeState({
+      config: { ...defaultConfig, currentPhase: Phase.REVIEW },
+      specFilesPresent: true,
+      tddOutputPresent: false,
+      allTasksCompleted: true,
+      tasks: [{ ...baseTask, status: 'COMPLETED' }],
+      activeFeature: { ...baseFeature, status: 'IN_PROGRESS' },
+    })
+    expect(ReentryResolver.resolve(state)).toBe(Phase.DEVELOPMENT)
   })
 
   describe('TS-U-42: Feature COMPLETED, more NOT_STARTED features -> TRANSITION', () => {

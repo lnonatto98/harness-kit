@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { Complexity } from '../types'
 import type { Feature } from '../../file-state/types'
+import type { IAgentRunner } from '../../agent-runner/IAgentRunner'
 
 export type InlinePolicy = 'never' | 'auto' | 'always'
 
@@ -13,15 +14,17 @@ export function inlineOrReference(
   content: string | undefined,
   filePath: string,
   lang: string = 'markdown',
-  policy: InlinePolicy = 'never'
+  policy: InlinePolicy = 'never',
+  activeRunner?: IAgentRunner,
 ): string[] {
   if (!content) return []
 
+  const runnerRequiresFilePath = activeRunner?.writePromptToStdin === false
   const shouldInline =
     policy === 'always' ? content.length <= FORCE_INLINE_MAX :
       policy === 'auto' ? content.length <= INLINE_THRESHOLD : false
 
-  if (!shouldInline) {
+  if (runnerRequiresFilePath || !shouldInline) {
     return [
       `<${label}_ref>`,
       `Read file: \`${filePath}\``,
@@ -72,7 +75,8 @@ export function buildReworkSection(
   reworkLogPath: string,
   totalReworks: number,
   reworkLogExists: boolean,
-  policy: InlinePolicy = 'always'
+  policy: InlinePolicy = 'always',
+  activeRunner?: IAgentRunner,
 ): string[] {
   if (!reworkLogExists) return []
 
@@ -86,7 +90,7 @@ export function buildReworkSection(
   }
 
   const reworkLines = content
-    ? inlineOrReference('rework_log_content', content, reworkLogPath, 'markdown', policy)
+    ? inlineOrReference('rework_log_content', content, reworkLogPath, 'markdown', policy, activeRunner)
     : [`Read the file \`${reworkLogPath}\` to know what was fixed in previous rounds.`]
 
   return [
@@ -116,7 +120,8 @@ export function buildDocsOrientationSection(
   projectPaths: string[],
   workingDir?: string,
   digestPolicy: InlinePolicy = 'never',
-  graphPolicy: InlinePolicy = 'never'
+  graphPolicy: InlinePolicy = 'never',
+  activeRunner?: IAgentRunner,
 ): string[] {
   const targets: string[] = []
   if (Array.isArray(projectPaths)) {
@@ -167,11 +172,11 @@ export function buildDocsOrientationSection(
       lines.push(`<project_orientation path="${projPath}">`)
 
       if (digestContent) {
-        lines.push(...inlineOrReference('digest_md', digestContent, join(projPath, 'docs', '.digest.md'), 'markdown', digestPolicy))
+        lines.push(...inlineOrReference('digest_md', digestContent, join(projPath, 'docs', '.digest.md'), 'markdown', digestPolicy, activeRunner))
       }
 
       if (graphContent) {
-        lines.push(...inlineOrReference('graph_json', graphContent, join(projPath, 'docs', '.graph.json'), 'json', graphPolicy))
+        lines.push(...inlineOrReference('graph_json', graphContent, join(projPath, 'docs', '.graph.json'), 'json', graphPolicy, activeRunner))
       }
 
       lines.push('</project_orientation>')
@@ -198,28 +203,70 @@ export function formatProjectPathsList(projectPaths: string[]): string {
   return projectPaths.map((p) => `- ${p}`).join('\n')
 }
 
-/** Builds the scope complexity rules block for LOW, HIGH, or AUTO evaluation. */
-export function buildComplexityRules(complexity?: Complexity): string[] {
+export interface ComplexityPromptFiles {
+  outputDirectory: string
+  problemSpaceFile: string
+  contextMapFile: string
+  tacticalDesignFile: string
+  testScenariosFile: string
+}
+
+export interface ComplexityPromptSections {
+  expectedOutputs: string[]
+  strictRules: string[]
+}
+
+/** Builds expected outputs and strict rules for LOW, HIGH, or AUTO evaluation. */
+export function buildComplexityRules(
+  complexity: Complexity | undefined,
+  files: ComplexityPromptFiles,
+): ComplexityPromptSections {
   const resolved = complexity ?? Complexity.AUTO
-  if (resolved === Complexity.LOW) {
-    return [
-      `- COMPLEXITY OVERRIDE: Classify as 'LOW' — do not re-evaluate scope complexity.`,
-      `- For 'LOW': Keep analysis concise, reuse established patterns, and produce only the required 003–004 artifacts. Do not produce 001–002 artifacts.`,
+  const outputFiles = resolved === Complexity.LOW
+    ? [
+      `- \`${files.tacticalDesignFile}\` (one per project in <project_paths>) — project-scoped Refinement Questions and Answers plus Tactical Design; must include \`## Section 6 — Ordered Development Tasks\` with a fenced JSON array of objects`,
+      `- \`${files.testScenariosFile}\` (one per project in <project_paths>) Test Scenarios`,
     ]
+    : [
+      `- \`${files.problemSpaceFile}\` Strategic Design: Domain Events, Subdomains, Ubiquitous Language (Focused ONLY on the target feature; maximum ${INLINE_THRESHOLD} characters)`,
+      `- \`${files.contextMapFile}\` Bounded Contexts and Context Map (maximum ${INLINE_THRESHOLD} characters)`,
+      `- \`${files.tacticalDesignFile}\` (one per project in <project_paths>) — project-scoped Refinement Questions and Answers plus Tactical Design; must include \`## Section 6 — Ordered Development Tasks\` with a fenced JSON array of objects`,
+      `- \`${files.testScenariosFile}\` (one per project in <project_paths>) Test Scenarios`,
+    ]
+  const expectedOutputs = [
+    `<expected_outputs>`,
+    `Produce, under \`${files.outputDirectory}\` (one file per project in <project_paths> for phases 3 and 4, where \${PROJECT_NAME} is the project name linked to each project in <project_paths>):`,
+    ...outputFiles,
+    `</expected_outputs>`,
+  ]
+
+  if (resolved === Complexity.LOW) {
+    return {
+      expectedOutputs,
+      strictRules: [
+        `- Keep analysis concise and produce only the two files listed above.`,
+        `- LOW mode skips Strategic Design and Context Map; do not create 001 or 002 artifacts.`,
+      ],
+    }
   }
   if (resolved === Complexity.HIGH) {
-    return [
-      `- COMPLEXITY OVERRIDE: Classify as 'HIGH' — do not re-evaluate scope complexity.`,
-      `- For 'HIGH': Give additional depth to integrations, failure modes, security boundaries, concurrency, and compatibility risks while producing all required 001–004 artifacts.`,
-      `- For 'HIGH': Read the generated \`001-problem-space.md\` and explicitly answer every question from its \`Socratic Questions\` section in downstream 003–004 artifacts.`,
-    ]
+    return {
+      expectedOutputs,
+      strictRules: [
+        `- Deepen analysis of integrations, failure modes, security boundaries, concurrency, and compatibility risks.`,
+        `- Resolve refinement questions from scope and project evidence; record each answer in every applicable \`003-\${PROJECT_NAME}-tactical-design.md\`.`,
+      ],
+    }
   }
-  return [
-    `- Evaluate scope complexity between 'LOW' and 'HIGH'. LOW is characterized by crystal-clear requirements, zero structural ambiguities, isolated changes, zero cross-team dependencies, use of existing patterns, straightforward flows, zero backward compatibility risks, and standard unit testing without complex integrations.`,
-    `- If LOW: keep analysis concise, reuse established patterns, and produce only 003–004 artifacts. Do not produce 001–002 artifacts.`,
-    `- If HIGH: deepen analysis of integrations, failure modes, security boundaries, concurrency, and compatibility risks, and produce all required 001–004 artifacts.`,
-    `- If HIGH: Read the generated \`001-problem-space.md\` and explicitly answer every question from its \`Socratic Questions\` section in downstream 003–004 artifacts.`,
-  ]
+  return {
+    expectedOutputs,
+    strictRules: [
+      `- Evaluate complexity from requirement clarity, structural ambiguity, dependencies, integrations, layers, compatibility, and testing needs.`,
+      `- Produce only 003–004 artifacts by default.`,
+      `- Produce 001–002 artifacts when <project_paths> contains 2+ projects, or when the scope identifies 3+ distinct integration points spanning 2+ modules and 2+ architectural layers; count each API, database, queue/topic, third-party service, or process boundary as one integration point.`,
+      `- Resolve refinement questions from scope and project evidence; record each answer in every applicable \`003-\${PROJECT_NAME}-tactical-design.md\`.`,
+    ],
+  }
 }
 
 /** Formats feature dependencies as a comma-separated list of specs folders or 'None'. */
@@ -232,12 +279,12 @@ export function formatFeatureDependencies(backlog: Feature[], feature: Feature):
   )
 }
 
-/** Formats pending tasks into a markdown list with taskId and description. */
-export function formatTasksList(tasks: Array<{ taskId: string; description: string }>): string {
+/** Formats pending tasks with their explicit project owner when available. */
+export function formatTasksList(tasks: Array<{ taskId: string; description: string; project?: string }>): string {
   if (tasks.length === 0) {
     return '- No pending tasks provided'
   }
-  return tasks.map((t) => `- [${t.taskId}] ${t.description}`).join('\n')
+  return tasks
+    .map((t) => `- [${t.taskId}]${t.project && t.project !== '-' ? ` [${t.project}]` : ''} ${t.description}`)
+    .join('\n')
 }
-
-

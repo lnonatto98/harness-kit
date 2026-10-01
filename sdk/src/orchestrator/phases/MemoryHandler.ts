@@ -9,7 +9,7 @@ import {
   formatRulesSection,
   formatProjectPathsList,
 } from '../utils/PromptHelpers'
-import { getProductDir } from '../utils/PhaseFileUtils'
+import { getPlanningSource, getProductDir } from '../utils/PhaseFileUtils'
 
 export class MemoryHandler extends AbstractPhaseHandler {
   async handle(phase: Phase, context: Reviewontext): Promise<Phase | null> {
@@ -23,11 +23,18 @@ export class MemoryHandler extends AbstractPhaseHandler {
       return Phase.DEPLOY
     }
 
+    const planningSource = getPlanningSource(context)
+    if (planningSource.exists) {
+      context.config.scope = planningSource.content
+    }
+
     const config = context.fsm.loadBootstrapConfig();
+    const recentDecisions = context.fsm.loadRecentDecisions(20)
     const payload = ContextAssembler.buildMemoryPayload(
       context.config.projectPaths,
       context.workingDir,
-      config.steeringRules
+      config.steeringRules,
+      recentDecisions,
     )
 
     const prompt = this.buildProjectMemoryPrompt(payload, context)
@@ -48,10 +55,14 @@ export class MemoryHandler extends AbstractPhaseHandler {
   private buildProjectMemoryPrompt(payload: MemoryPayload, context: Reviewontext): string {
     const backlogFile = join(getProductDir(context), 'BACKLOG.md')
     const specsPattern = join(context.workingDir, 'docs', 'specs', '[domain]', '*.md')
+    const decisionsFile = join(getProductDir(context), 'DECISIONS.md')
+    const tlPattern = join(context.workingDir, 'docs', 'specs', '[domain]', 'TL.json')
+    const qaPattern = join(context.workingDir, 'docs', 'specs', '[domain]', 'QA.json')
+    const reworkPattern = join(context.workingDir, 'docs', 'specs', '[domain]', 'REWORK-LOG.md')
     const projectPathsList = formatProjectPathsList(payload.projectPaths)
     const rulesSection = formatRulesSection(payload.steeringRules)
 
-    const orientationSection = buildDocsOrientationSection(payload.projectPaths, context.workingDir)
+    const orientationSection = buildDocsOrientationSection(payload.projectPaths, context.workingDir, undefined, undefined, context.config.agentRunner)
 
     // Static-first ordering: everything that doesn't change between invocations
     // goes before the variable blocks (scope, project_paths, rules), so those
@@ -95,10 +106,20 @@ export class MemoryHandler extends AbstractPhaseHandler {
       `- NEVER create a new ADR file unless explicitly requested by a human.`,
       `- NEVER read, create, or modify any file under \`docs/harness-history/\`.`,
       ``,
-      `## Optional`,
-      `- Run \`git status -s\` to list all modified files in each project.`,
-      ``,
       `</instructions>`,
+      ``,
+      `<verification_sources>`,
+      `- Decisions: \`${decisionsFile}\``,
+      `- Final Tech Lead reviews: \`${tlPattern}\``,
+      `- Final adversarial QA reviews: \`${qaPattern}\``,
+      `- Rework records when present: \`${reworkPattern}\``,
+      `- Run \`git status -s\` in each project to inventory changed files.`,
+      `Use these sources only to verify delivered behavior, decisions, and relevant paths. Do not copy scores, validation chronology, or implementation process into feature documentation.`,
+      `</verification_sources>`,
+      ``,
+      `<recent_decisions>`,
+      ...(payload.recentDecisions?.length ? payload.recentDecisions : ['No recent decisions recorded.']),
+      `</recent_decisions>`,
       ``,
       ...orientationSection,
       `<scope>`,

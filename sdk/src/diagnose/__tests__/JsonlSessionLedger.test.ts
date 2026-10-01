@@ -32,7 +32,7 @@ describe('JsonlSessionLedger', () => {
     status: 'pending',
     snapshot: {
       runner: 'copilot-cli',
-      model: 'gpt-5.6-luna',
+      model: 'gpt-6-luna',
       effort: 'xhigh',
       scopeSummary: 'Feature 2',
       featureIds: ['F002'],

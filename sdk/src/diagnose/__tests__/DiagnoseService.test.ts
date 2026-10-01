@@ -54,7 +54,7 @@ describe('DiagnoseService', () => {
         status: 'pending',
         snapshot: {
           runner: 'copilot-cli',
-          model: 'gpt-5.6-luna',
+          model: 'gpt-6-luna',
           effort: 'xhigh',
           scopeSummary: 'Task 3',
           featureIds: ['F003'],
@@ -69,7 +69,7 @@ describe('DiagnoseService', () => {
         status: 'pending',
         snapshot: {
           runner: 'cursor-cli',
-          model: 'gpt-5.6-luna',
+          model: 'gpt-6-luna',
           effort: 'xhigh',
           scopeSummary: 'Task 4',
           featureIds: ['F004'],
@@ -129,13 +129,13 @@ describe('DiagnoseService', () => {
       1,
       expect.objectContaining({ sessionId: 'session-2026-08-15-001' }),
       'session-2026-08-15-001',
-      { model: 'anthropic.claude-5-sonnet', effort: 'low' }
+      { model: 'claude-sonnet-5', effort: 'high' }
     )
     expect(mockAdapter.invoke).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ sessionId: 'session-2026-08-15-002' }),
       'session-2026-08-15-002',
-      { model: 'gemini-3.7-flash', effort: 'low' }
+      { model: 'gemini-3.8-flash', effort: 'low' }
     )
   })
 
@@ -202,7 +202,7 @@ describe('DiagnoseService', () => {
     expect(result.remaining).toBe(0)
     expect(mockAdapter.invokeMetaHarness).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: 'session-2026-08-15-001' }),
-      { model: 'anthropic.claude-5-sonnet', effort: 'low' }
+      { model: 'claude-sonnet-5', effort: 'high' }
     )
   })
 

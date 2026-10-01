@@ -64,6 +64,10 @@ function makeFsm(overrides: Partial<IFileStateManager> = {}): IFileStateManager 
     appendDecision: vi.fn(),
     updateFeatureStatus: vi.fn(),
     getPendingTasks: vi.fn(),
+    existScope: vi.fn().mockReturnValue(true),
+    loadScope: vi.fn().mockReturnValue('test scope'),
+    existRefinement: vi.fn().mockReturnValue(false),
+    loadRefinement: vi.fn().mockReturnValue(''),
     ...overrides,
   } as any
 
@@ -157,7 +161,7 @@ describe('DevelopmentHandler', () => {
   })
 
   describe('handle — handleResumedExecution transitions to REVIEW', () => {
-    it('returns REVIEW when TDD-OUTPUT.json exists', async () => {
+    it('returns REVIEW when TDD-OUTPUT.json exists and no tasks remain pending', async () => {
       const tddPath = join(workingDir, 'docs', 'specs', 'sdk_core', 'TDD-OUTPUT.json')
       writeFileSync(tddPath, JSON.stringify({
         featureId: 'F001',
@@ -170,6 +174,7 @@ describe('DevelopmentHandler', () => {
 
       const fsm = makeFsm({
         loadBacklog: vi.fn().mockReturnValue([makeFeature()]),
+        loadDevelopmentState: vi.fn().mockReturnValue([makeTask({ status: 'COMPLETED' })]),
         updateTaskStatus: vi.fn(),
       })
 
@@ -177,9 +182,32 @@ describe('DevelopmentHandler', () => {
       const result = await handler.handle(Phase.DEVELOPMENT, context)
 
       expect(result).toBe(Phase.REVIEW)
+      expect(context.invokeAgent).not.toHaveBeenCalled()
     })
 
-    it('returns REVIEW without invoking developer when TDD-OUTPUT.json exists', async () => {
+    it('returns REVIEW from existing TDD output while tasks remain pending', async () => {
+      const tddPath = join(workingDir, 'docs', 'specs', 'sdk_core', 'TDD-OUTPUT.json')
+      writeFileSync(tddPath, JSON.stringify({
+        featureId: 'F001',
+        status: 'SUCCESS',
+        metrics: { totalTests: 1, passed: 1, failed: 0, coverage: 0.9 },
+        modifiedFiles: [],
+        developerHandoff: 'Stale output from an earlier run.',
+        reworksCount: 0,
+      }))
+
+      const fsm = makeFsm({ updateTaskStatus: vi.fn() })
+      const context = makeContext(workingDir, fsm)
+
+      const result = await handler.handle(Phase.DEVELOPMENT, context)
+
+      expect(result).toBe(Phase.REVIEW)
+      expect(context.invokeAgent).not.toHaveBeenCalled()
+      expect(fsm.updateTaskStatus).toHaveBeenCalledWith('F001', 'T01', '-', 'COMPLETED')
+      expect(fsm.appendDecision).not.toHaveBeenCalled()
+    })
+
+    it('returns REVIEW from malformed existing TDD-OUTPUT.json', async () => {
       const tddPath = join(workingDir, 'docs', 'specs', 'sdk_core', 'TDD-OUTPUT.json')
       writeFileSync(tddPath, '{ existing output }')
       const fsm = makeFsm({ updateTaskStatus: vi.fn() })
@@ -194,7 +222,7 @@ describe('DevelopmentHandler', () => {
   })
 
   describe('handle — chunk execution', () => {
-    it('returns REVIEW after agent runs', async () => {
+    it('returns REVIEW after agent runs with percentage coverage', async () => {
       const tddPath = join(workingDir, 'docs', 'specs', 'sdk_core', 'TDD-OUTPUT.json')
 
       const tasks = [makeTask({ taskId: 'T01', status: 'NOT_STARTED' })]
@@ -209,7 +237,7 @@ describe('DevelopmentHandler', () => {
         writeFileSync(tddPath, JSON.stringify({
           featureId: 'F001',
           status: 'SUCCESS',
-          metrics: { totalTests: 3, passed: 3, failed: 0, coverage: 0.85 },
+          metrics: { totalTests: 3, passed: 3, failed: 0, coverage: 100 },
           modifiedFiles: [],
           developerHandoff: 'Ready for review.',
           reworksCount: 0,
@@ -226,13 +254,38 @@ describe('DevelopmentHandler', () => {
       expect(invokeCall.prompt).toContain('maximum 500 characters')
     })
 
-    it('advances to REVIEW after agent invocation when TDD output is absent', async () => {
+    it('returns REVIEW after agent invocation when TDD output is absent', async () => {
       const fsm = makeFsm({ updateTaskStatus: vi.fn() })
       const context = makeContext(workingDir, fsm)
 
       const result = await handler.handle(Phase.DEVELOPMENT, context)
 
       expect(result).toBe(Phase.REVIEW)
+      expect(fsm.updateTaskStatus).not.toHaveBeenCalledWith('F001', 'T01', '-', 'COMPLETED')
+    })
+
+    it('returns REVIEW without invoking for existing malformed TDD output', async () => {
+      const tddPath = join(workingDir, 'docs', 'specs', 'sdk_core', 'TDD-OUTPUT.json')
+      writeFileSync(tddPath, JSON.stringify({ featureId: 'F001' }))
+
+      const fsm = makeFsm({ updateTaskStatus: vi.fn() })
+      const context = makeContext(workingDir, fsm)
+
+      const result = await handler.handle(Phase.DEVELOPMENT, context)
+
+      expect(result).toBe(Phase.REVIEW)
+      expect(fsm.updateTaskStatus).toHaveBeenCalledWith('F001', 'T01', '-', 'COMPLETED')
+      expect(context.invokeAgent).not.toHaveBeenCalled()
+    })
+
+    it('returns REVIEW when the developer does not write TDD output', async () => {
+      const fsm = makeFsm({ updateTaskStatus: vi.fn() })
+      const context = makeContext(workingDir, fsm)
+
+      const result = await handler.handle(Phase.DEVELOPMENT, context)
+
+      expect(result).toBe(Phase.REVIEW)
+      expect(fsm.updateTaskStatus).not.toHaveBeenCalledWith('F001', 'T01', '-', 'COMPLETED')
     })
 
     it('embeds REWORK-LOG.md content in the prompt on retry run (standalone without session)', async () => {
@@ -270,7 +323,7 @@ describe('DevelopmentHandler', () => {
       expect(invokeCall.prompt).toContain('<rework')
       expect(invokeCall.prompt).toContain('<development_specifications>')
       expect(invokeCall.prompt).toContain('<tasks>')
-      expect(invokeCall.prompt).toContain('[T01] Do something')
+      expect(invokeCall.prompt).toContain('[T01] [sdk] Do something')
       expect(invokeCall.prompt).toContain('"status": "SUCCESS"')
       expect(invokeCall.prompt).toContain('"developerHandoff"')
       expect(invokeCall.prompt).toContain('maximum 500 characters')
@@ -320,6 +373,8 @@ describe('DevelopmentHandler', () => {
         loadBootstrapConfig: vi.fn().mockReturnValue(makeConfig()),
         loadBacklog: vi.fn().mockReturnValue([makeFeature({ reworks: 1 })]),
         updateTaskStatus: vi.fn(),
+        existRefinement: vi.fn().mockReturnValue(true),
+        loadRefinement: vi.fn().mockReturnValue('# Refined backlog'),
       })
 
       const context = makeContext(workingDir, fsm, async () => {
@@ -360,9 +415,13 @@ describe('DevelopmentHandler', () => {
       expect(invokeCall.prompt).toContain('<expected_output>')
       expect(invokeCall.prompt).toContain('"developerHandoff"')
       expect(invokeCall.prompt).toContain('maximum 500 characters')
-      // Continuation prompt should NOT re-send full development specifications or project paths/orientation
+      // Continuation prompt keeps compact anchors without re-sending full specifications or orientation content.
       expect(invokeCall.prompt).not.toContain('<development_specifications>')
-      expect(invokeCall.prompt).not.toContain('<project_paths>')
+      expect(invokeCall.prompt).toContain('<context_anchors>')
+      expect(invokeCall.prompt).toContain('<project_paths>')
+      expect(invokeCall.prompt).toContain('REFINEMENT.md')
+      expect(invokeCall.prompt).not.toContain('SCOPE.md')
+      expect(invokeCall.prompt).toContain(join(workingDir, 'docs', 'specs', 'sdk_core'))
       expect(invokeCall.prompt).not.toContain('<orientation>')
     })
 
@@ -414,6 +473,7 @@ describe('DevelopmentHandler', () => {
       const fsm = makeFsm({
         loadBootstrapConfig: vi.fn().mockReturnValue(makeConfig()),
         loadBacklog: vi.fn().mockReturnValue([makeFeature({ id: 'F002', reworks: 1 })]),
+        loadDevelopmentState: vi.fn().mockReturnValue([makeTask({ featureId: 'F002' })]),
         updateTaskStatus: vi.fn(),
       })
 

@@ -1,11 +1,22 @@
 import { describe, it, expect } from 'vitest'
 import { parseRunArgs } from '../run-args-parser'
-import { resolveMode } from '../../services/run-service'
+import { hasCompletedAllFeatures, resolveMode } from '../../services/run-service'
 import { RunMode, Complexity } from '../../../orchestrator/types'
 
 // ─── parseRunArgs ────────────────────────────────────────────────────────────
 
 describe('parseRunArgs', () => {
+  describe('--run', () => {
+    it('selects a QA run for development correction', () => {
+      expect(parseRunArgs(['--run', 'orders-20260911']).runId).toBe('orders-20260911')
+      expect(parseRunArgs(['--run=checkout-20260912']).runId).toBe('checkout-20260912')
+    })
+
+    it('leaves the QA run undefined when omitted', () => {
+      expect(parseRunArgs([]).runId).toBeUndefined()
+    })
+  })
+
   describe('--mode / -M', () => {
     it('returns undefined mode when flag is absent', () => {
       const result = parseRunArgs([])
@@ -113,25 +124,27 @@ describe('parseRunArgs', () => {
 // ─── resolveMode ─────────────────────────────────────────────────────────────
 
 describe('resolveMode', () => {
-  it('defaults to AUTO complexity, no skips when mode is undefined', () => {
+  it('keeps AUTO complexity for undefined mode fallback', () => {
     const r = resolveMode(undefined)
     expect(r.complexity).toBe(Complexity.AUTO)
     expect(r.skipValidation).toBe(false)
     expect(r.skipMemory).toBe(false)
+    expect(r.enableRefinement).toBe(true)
   })
 
-  it('default mode → AUTO, no skips', () => {
+  it('thinking mode → LOW, no skips + REFINEMENT', () => {
     const r = resolveMode(RunMode.THINKING)
-    expect(r.complexity).toBe(Complexity.AUTO)
+    expect(r.complexity).toBe(Complexity.LOW)
     expect(r.skipValidation).toBe(false)
     expect(r.skipMemory).toBe(false)
+    expect(r.enableRefinement).toBe(true)
   })
 
-  it('quick mode → LOW + skipValidation + skipMemory', () => {
+  it('quick mode → LOW + skipValidation while keeping Memory', () => {
     const r = resolveMode(RunMode.QUICK)
     expect(r.complexity).toBe(Complexity.LOW)
     expect(r.skipValidation).toBe(true)
-    expect(r.skipMemory).toBe(true)
+    expect(r.skipMemory).toBe(false)
   })
 
   it('fast mode → LOW, no skips', () => {
@@ -146,5 +159,21 @@ describe('resolveMode', () => {
     expect(r.complexity).toBe(Complexity.HIGH)
     expect(r.skipValidation).toBe(false)
     expect(r.skipMemory).toBe(false)
+  })
+})
+
+describe('hasCompletedAllFeatures', () => {
+  it('returns false when orchestration halts with unfinished features', () => {
+    expect(hasCompletedAllFeatures([
+      { status: 'NOT_STARTED' },
+      { status: 'COMPLETED' },
+    ])).toBe(false)
+  })
+
+  it('returns true only when every feature completed', () => {
+    expect(hasCompletedAllFeatures([
+      { status: 'COMPLETED' },
+      { status: 'COMPLETED' },
+    ])).toBe(true)
   })
 })

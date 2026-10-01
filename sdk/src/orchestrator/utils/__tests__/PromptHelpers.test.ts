@@ -14,6 +14,12 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import type { IAgentRunner } from '../../../agent-runner/IAgentRunner'
+
+const runnerWithPromptTransport = (writePromptToStdin: boolean): IAgentRunner => ({
+  writePromptToStdin,
+  run: async () => ({ success: true, stdout: '', stderr: '', raw: '' }),
+})
 
 describe('PromptHelpers', () => {
   describe('inlineOrReference', () => {
@@ -85,6 +91,68 @@ describe('PromptHelpers', () => {
         content,
         '```',
         '</json_label>'
+      ])
+    })
+
+    it('returns only the file path when the active runner cannot write prompts to stdin', () => {
+      const content = 'a'.repeat(FORCE_INLINE_MAX)
+      const runner = runnerWithPromptTransport(false)
+
+      const result = inlineOrReference(
+        'test_label',
+        content,
+        '/path/to/file.md',
+        'markdown',
+        'always',
+        runner,
+      )
+
+      expect(result).toEqual([
+        '<test_label_ref>',
+        'Read file: `/path/to/file.md`',
+        '</test_label_ref>',
+      ])
+      expect(result.join('\n')).not.toContain(content)
+    })
+
+    it('keeps aggregate positional prompt content below spawn argument limits for non-stdin runners', () => {
+      const runner = runnerWithPromptTransport(false)
+      const content = 'a'.repeat(FORCE_INLINE_MAX)
+
+      const prompt = Array.from({ length: 20 }, (_, index) =>
+        inlineOrReference(
+          `file_${index}`,
+          content,
+          `/path/to/file-${index}.md`,
+          'markdown',
+          'always',
+          runner,
+        ).join('\n')
+      ).join('\n')
+
+      expect(prompt.length).toBeLessThan(4096)
+      expect(prompt).not.toContain(content)
+      expect(prompt).toContain('Read file: `/path/to/file-19.md`')
+    })
+
+    it('keeps the requested inline policy when the active runner writes prompts to stdin', () => {
+      const runner = runnerWithPromptTransport(true)
+
+      const result = inlineOrReference(
+        'test_label',
+        'content',
+        '/path/to/file.md',
+        'markdown',
+        'always',
+        runner,
+      )
+
+      expect(result).toEqual([
+        '<test_label>',
+        '```markdown',
+        'content',
+        '```',
+        '</test_label>',
       ])
     })
   })
@@ -280,23 +348,52 @@ describe('PromptHelpers', () => {
 
   describe('buildComplexityRules', () => {
     it('returns LOW override rules when complexity is LOW', () => {
-      const result = buildComplexityRules('LOW' as any)
-      expect(result).toContain("- COMPLEXITY OVERRIDE: Classify as 'LOW' — do not re-evaluate scope complexity.")
-      expect(result).toContain('- For \'LOW\': Keep analysis concise, reuse established patterns, and produce only the required 003–004 artifacts. Do not produce 001–002 artifacts.')
+      const result = buildComplexityRules('LOW' as any, {
+        outputDirectory: '/specs/hello_world_cli',
+        problemSpaceFile: '/specs/hello_world_cli/001-problem-space.md',
+        contextMapFile: '/specs/hello_world_cli/002-context-map.md',
+        tacticalDesignFile: '/specs/hello_world_cli/003-${PROJECT_NAME}-tactical-design.md',
+        testScenariosFile: '/specs/hello_world_cli/004-${PROJECT_NAME}-test-scenarios.md',
+      })
+
+      expect(result.expectedOutputs[0]).toBe('<expected_outputs>')
+      expect(result.expectedOutputs).toContain('- `/specs/hello_world_cli/003-${PROJECT_NAME}-tactical-design.md` (one per project in <project_paths>) — project-scoped Refinement Questions and Answers plus Tactical Design; must include `## Section 6 — Ordered Development Tasks` with a fenced JSON array of objects')
+      expect(result.expectedOutputs).toContain('- `/specs/hello_world_cli/004-${PROJECT_NAME}-test-scenarios.md` (one per project in <project_paths>) Test Scenarios')
+      expect(result.expectedOutputs.join('\n')).not.toContain('001-problem-space.md')
+      expect(result.expectedOutputs.join('\n')).not.toContain('002-context-map.md')
+      expect(result.strictRules).toContain('- Keep analysis concise and produce only the two files listed above.')
+      expect(result.strictRules.join('\n')).not.toContain('<expected_outputs>')
     })
 
     it('returns HIGH override rules when complexity is HIGH', () => {
-      const result = buildComplexityRules('HIGH' as any)
-      expect(result).toContain("- COMPLEXITY OVERRIDE: Classify as 'HIGH' — do not re-evaluate scope complexity.")
-      expect(result).toContain('- For \'HIGH\': Give additional depth to integrations, failure modes, security boundaries, concurrency, and compatibility risks while producing all required 001–004 artifacts.')
-      expect(result).toContain("- For 'HIGH': Read the generated `001-problem-space.md` and explicitly answer every question from its `Socratic Questions` section in downstream 003–004 artifacts.")
+      const result = buildComplexityRules('HIGH' as any, {
+        outputDirectory: '/specs/hello_world_cli',
+        problemSpaceFile: '/specs/hello_world_cli/001-problem-space.md',
+        contextMapFile: '/specs/hello_world_cli/002-context-map.md',
+        tacticalDesignFile: '/specs/hello_world_cli/003-${PROJECT_NAME}-tactical-design.md',
+        testScenariosFile: '/specs/hello_world_cli/004-${PROJECT_NAME}-test-scenarios.md',
+      })
+      expect(result.strictRules).toContain('- Deepen analysis of integrations, failure modes, security boundaries, concurrency, and compatibility risks.')
+      expect(result.strictRules).toContain('- Resolve refinement questions from scope and project evidence; record each answer in every applicable `003-${PROJECT_NAME}-tactical-design.md`.')
+      expect(result.expectedOutputs.join('\n')).toContain('001-problem-space.md')
+      expect(result.expectedOutputs.join('\n')).toContain('002-context-map.md')
     })
 
     it('returns AUTO evaluation rules when complexity is AUTO or undefined', () => {
-      const resultAuto = buildComplexityRules('AUTO' as any)
-      expect(resultAuto[0]).toContain("Evaluate scope complexity between 'LOW' and 'HIGH'")
-      const resultUndef = buildComplexityRules(undefined)
-      expect(resultUndef[0]).toContain("Evaluate scope complexity between 'LOW' and 'HIGH'")
+      const files = {
+        outputDirectory: '/specs/hello_world_cli',
+        problemSpaceFile: '/specs/hello_world_cli/001-problem-space.md',
+        contextMapFile: '/specs/hello_world_cli/002-context-map.md',
+        tacticalDesignFile: '/specs/hello_world_cli/003-${PROJECT_NAME}-tactical-design.md',
+        testScenariosFile: '/specs/hello_world_cli/004-${PROJECT_NAME}-test-scenarios.md',
+      }
+      const resultAuto = buildComplexityRules('AUTO' as any, files)
+      expect(resultAuto.strictRules[0]).toContain('Evaluate complexity from requirement clarity')
+      expect(resultAuto.strictRules).toContain('- Produce only 003–004 artifacts by default.')
+      expect(resultAuto.strictRules).toContain('- Produce 001–002 artifacts when <project_paths> contains 2+ projects, or when the scope identifies 3+ distinct integration points spanning 2+ modules and 2+ architectural layers; count each API, database, queue/topic, third-party service, or process boundary as one integration point.')
+      expect(resultAuto.expectedOutputs).toContain('- `/specs/hello_world_cli/001-problem-space.md` Strategic Design: Domain Events, Subdomains, Ubiquitous Language (Focused ONLY on the target feature; maximum 5000 characters)')
+      const resultUndef = buildComplexityRules(undefined, files)
+      expect(resultUndef.strictRules[0]).toContain('Evaluate complexity from requirement clarity')
     })
   })
 
@@ -329,6 +426,14 @@ describe('PromptHelpers', () => {
       ]
       expect(formatTasksList(tasks)).toBe('- [T01] Setup database\n- [T02] Create model')
     })
+
+    it('includes project ownership when available', () => {
+      const tasks = [
+        { taskId: 'T01', project: 'api', description: 'Create endpoint' },
+        { taskId: 'T02', project: 'web', description: 'Create form' },
+      ]
+
+      expect(formatTasksList(tasks)).toBe('- [T01] [api] Create endpoint\n- [T02] [web] Create form')
+    })
   })
 })
-

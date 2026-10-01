@@ -30,6 +30,10 @@ function makeContext(): Reviewontext {
       loadBootstrapConfig: vi.fn().mockReturnValue({ steeringRules: [] }),
       saveBootstrapConfig: vi.fn(),
       loadBacklog: vi.fn().mockReturnValue([{ id: 'F001', domain: 'd', dependencies: [] }]),
+      existRefinement: vi.fn().mockReturnValue(false),
+      loadRefinement: vi.fn().mockReturnValue(''),
+      existScope: vi.fn().mockReturnValue(false),
+      loadScope: vi.fn().mockReturnValue(''),
     } as unknown as Reviewontext['fsm'],
     invokeAgent: vi.fn().mockResolvedValue(undefined),
     getActiveFeature: vi.fn().mockReturnValue(null),
@@ -39,6 +43,13 @@ function makeContext(): Reviewontext {
 }
 
 describe('ChainBuilder', () => {
+  it('handles optional REFINEMENT before BOOTSTRAP', async () => {
+    const chain = new ChainBuilder().build()
+    const ctx = makeContext()
+    const result = await chain.handle(Phase.REFINEMENT, ctx)
+    expect(result).toBe(Phase.BOOTSTRAP)
+  })
+
   it('always starts with BootstrapHandler — handles BOOTSTRAP phase', async () => {
     const chain = new ChainBuilder().build()
     const ctx = makeContext()

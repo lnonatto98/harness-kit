@@ -11,6 +11,7 @@ vi.mock('../../../src/context-assembler/ContextAssembler', () => ({
       projectPaths: ['/src'],
       workingDir: '/mock/dir',
       steeringRules: [],
+      recentDecisions: ['| timestamp | F001 | Review: PASS | TL:0.95, Adv:0.96 | verified |'],
     }),
   },
 }))
@@ -41,6 +42,10 @@ describe('MemoryHandler', () => {
           steeringRules: {},
         }),
         loadRecentDecisions: vi.fn().mockReturnValue([]),
+        existScope: vi.fn().mockReturnValue(true),
+        loadScope: vi.fn().mockReturnValue('mock scope'),
+        existRefinement: vi.fn().mockReturnValue(false),
+        loadRefinement: vi.fn().mockReturnValue(''),
       },
     }
   })
@@ -66,7 +71,27 @@ describe('MemoryHandler', () => {
     expect(prompt).not.toContain(join('/mock/dir', 'docs', 'product', 'specs'))
     expect(prompt).not.toContain('/harness-kit:project-memory')
     expect(prompt).toContain('docs/feature/*.md')
+    expect(prompt).toContain('<verification_sources>')
+    expect(prompt).toContain(join('/mock/dir', 'docs', 'product', 'DECISIONS.md'))
+    expect(prompt).toContain(join('/mock/dir', 'docs', 'specs', '[domain]', 'TL.json'))
+    expect(prompt).toContain(join('/mock/dir', 'docs', 'specs', '[domain]', 'QA.json'))
+    expect(prompt).toContain('<recent_decisions>')
+    expect(prompt).toContain('Review: PASS')
+    expect(mockContext.fsm.loadRecentDecisions).toHaveBeenCalledWith(20)
     expect(result).toBe(Phase.DEPLOY)
+  })
+
+  it('uses REFINEMENT.md content as the exclusive memory scope when it exists', async () => {
+    mockContext.fsm.existRefinement.mockReturnValue(true)
+    mockContext.fsm.loadRefinement.mockReturnValue('# Refined memory context')
+    mockContext.config.scope = 'scope content must not be used'
+
+    await handler.handle(Phase.MEMORY, mockContext)
+
+    const prompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string
+    expect(prompt).toContain('# Refined memory context')
+    expect(prompt).not.toContain('scope content must not be used')
+    expect(mockContext.fsm.loadScope).not.toHaveBeenCalled()
   })
 
   it('deve pular Phase E inteira quando skipMemory=true no config', async () => {

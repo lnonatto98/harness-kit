@@ -1,6 +1,6 @@
-import { existsSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { Complexity, Phase } from '../types'
+import { Phase } from '../types'
 import { AbstractPhaseHandler, Reviewontext } from './AbstractPhaseHandler'
 import { ContextAssembler } from '../../context-assembler/ContextAssembler'
 import { JsonExtractionProtocol } from '../../json-extraction/JsonExtractionProtocol'
@@ -14,7 +14,7 @@ import {
   buildDocsOrientationSection
 } from '../utils/PromptHelpers'
 import { clearFeatureDeveloperSessions } from '../utils/SessionHelpers'
-import { getSpecsDir } from '../utils/PhaseFileUtils'
+import { getPlanningSource, getSpecsDir } from '../utils/PhaseFileUtils'
 import type { ReviewPayload } from '../../context-assembler/types'
 import type { BootstrapConfig, Feature, FeatureStatus } from '../../file-state/types'
 import type { ValidationScores } from '../../validation-gate/types'
@@ -38,9 +38,18 @@ export class ReviewHandler extends AbstractPhaseHandler {
     if (context.config.skipValidation) {
       process.stdout.write(`[phase_review] --skip-validation active — skipping review for feature ${activeFeature.id}\n`)
       clearFeatureDeveloperSessions(context)
-      context.fsm.updateFeatureStatus(activeFeature.id, 'COMPLETED', { tl: 1, adv: 1 })
+      context.fsm.updateFeatureStatus(activeFeature.id, 'COMPLETED')
       context.fsm.updateAllFeatureTasks(activeFeature.id, '-', 'COMPLETED')
+      context.fsm.appendDecision({
+        featureId: activeFeature.id,
+        decision: `REVIEW skipped by execution policy for feature ${activeFeature.id}.`,
+      })
       return Phase.TRANSITION
+    }
+
+    const planningSource = getPlanningSource(context)
+    if (planningSource.exists) {
+      context.config.scope = planningSource.content
     }
 
     this.cleanTemporaryFiles(context, activeFeature.domain)
@@ -77,14 +86,6 @@ export class ReviewHandler extends AbstractPhaseHandler {
   private async executeAgents(context: Reviewontext, payload: ReviewPayload, config: BootstrapConfig) {
     const tlPrompt = this.buildTechLeadPrompt(payload, context, config)
     const advPrompt = this.buildAdversarialQAPrompt(payload, context, config)
-    const isSimple = context.config.complexity === Complexity.LOW
-
-    const tlMock = { featureId: payload.featureId, score: 1, openPoints: [], architectureTip: '' }
-    const specsDir = getSpecsDir(context.workingDir, payload.domain)
-
-    if (isSimple && existsSync(specsDir)) {
-      writeFileSync(join(specsDir, 'TL.json'), JSON.stringify(tlMock, null, 2), 'utf8')
-    }
 
     const tlAgent = 'harness-kit:harness-tech-lead'
     const advAgent = 'harness-kit:harness-qa'
@@ -92,27 +93,25 @@ export class ReviewHandler extends AbstractPhaseHandler {
     const tlSession = context.getDeveloperSession?.(tlAgent, payload.featureId, Phase.REVIEW)
     const advSession = context.getDeveloperSession?.(advAgent, payload.featureId, Phase.REVIEW)
 
-    const tlPromise = isSimple
-      ? Promise.resolve(tlMock)
-      : context.invokeAgent({
-        skill: 'harness-kit:the-grumpy-tech-lead',
-        agent: tlAgent,
-        mode: 'autonomous',
-        prompt: tlPrompt,
-        phaseKey: 'review_tl',
-        domain: payload.domain,
-        ...(tlSession ? { session: tlSession } : {}),
-      }).then(output => {
-        if (output.session) {
-          context.setDeveloperSession?.({
-            featureId: payload.featureId,
-            agent: tlAgent,
-            session: output.session,
-            phase: Phase.REVIEW,
-          })
-        }
-        return output
-      })
+    const tlPromise = context.invokeAgent({
+      skill: 'harness-kit:the-grumpy-tech-lead',
+      agent: tlAgent,
+      mode: 'autonomous',
+      prompt: tlPrompt,
+      phaseKey: 'review_tl',
+      domain: payload.domain,
+      ...(tlSession ? { session: tlSession } : {}),
+    }).then(output => {
+      if (output.session) {
+        context.setDeveloperSession?.({
+          featureId: payload.featureId,
+          agent: tlAgent,
+          session: output.session,
+          phase: Phase.REVIEW,
+        })
+      }
+      return output
+    })
 
     const advPromise = context.invokeAgent({
       skill: 'harness-kit:adversarial-qa',
@@ -264,7 +263,8 @@ export class ReviewHandler extends AbstractPhaseHandler {
     const specsDir = join(workingDir, 'docs', 'specs', payload.domain)
     const reworkLogPath = join(workingDir, 'docs', 'specs', payload.domain, 'REWORK-LOG.md')
 
-    const reworkSection = buildReworkSection(reworkLogPath, payload.totalReworks, existsSync(reworkLogPath))
+    const reworkSection = buildReworkSection(reworkLogPath, payload.totalReworks, existsSync(reworkLogPath), 'always', context.config.agentRunner)
+    const tddSummary = this.buildTddSummary(payload)
 
     return [
       `## Objective`,
@@ -324,18 +324,20 @@ export class ReviewHandler extends AbstractPhaseHandler {
       ``,
       `<spec_sources>`,
       `- Development log: \`${specsDir}/TDD-OUTPUT.json\` or \`git status -s\` to list all modified files in each project.`,
+      ...tddSummary,
+      ...this.buildSpecificationProvenance(specsDir),
       `<development_handoff>`,
       payload.developerHandoff ?? 'No developer handoff provided.',
       `</development_handoff>`,
       `Treat the developer handoff as navigation context only. Independently verify every claim against code and tests.`,
-      ...inlineOrReference('problem_space', payload.specsContent?.problemSpace, join(specsDir, '001-problem-space.md'), 'markdown'),
-      ...inlineOrReference('context_map', payload.specsContent?.contextMap, join(specsDir, '002-context-map.md'), 'markdown'),
-      ...inlineOrReference('tactical_design', payload.specsContent?.tacticalDesign, join(specsDir, '003-*-tactical-design.md'), 'markdown', 'always'),
-      ...inlineOrReference('test_scenarios', payload.specsContent?.testScenarios, join(specsDir, '004-*-test-scenarios.md'), 'markdown', 'always'),
+      ...inlineOrReference('problem_space', payload.specsContent?.problemSpace, join(specsDir, '001-problem-space.md'), 'markdown', 'never', context.config.agentRunner),
+      ...inlineOrReference('context_map', payload.specsContent?.contextMap, join(specsDir, '002-context-map.md'), 'markdown', 'never', context.config.agentRunner),
+      ...inlineOrReference('tactical_design', payload.specsContent?.tacticalDesign, join(specsDir, '003-*-tactical-design.md'), 'markdown', 'always', context.config.agentRunner),
+      ...inlineOrReference('test_scenarios', payload.specsContent?.testScenarios, join(specsDir, '004-*-test-scenarios.md'), 'markdown', 'always', context.config.agentRunner),
       `</spec_sources>`,
       ``,
       `<inputs>`,
-      ...buildDocsOrientationSection(payload.projectPaths, workingDir),
+      ...buildDocsOrientationSection(payload.projectPaths, workingDir, undefined, undefined, context.config.agentRunner),
       `<feature>`,
       `Feature ID: ${payload.featureId}`,
       `Title: ${payload.featureTitle}`,
@@ -357,7 +359,8 @@ export class ReviewHandler extends AbstractPhaseHandler {
     const specsDir = join(workingDir, 'docs', 'specs', payload.domain)
     const reworkLogPath = join(workingDir, 'docs', 'specs', payload.domain, 'REWORK-LOG.md')
 
-    const reworkSection = buildReworkSection(reworkLogPath, payload.totalReworks, existsSync(reworkLogPath))
+    const reworkSection = buildReworkSection(reworkLogPath, payload.totalReworks, existsSync(reworkLogPath), 'always', context.config.agentRunner)
+    const tddSummary = this.buildTddSummary(payload)
 
     return [
       `## Objective`,
@@ -420,18 +423,20 @@ export class ReviewHandler extends AbstractPhaseHandler {
       ``,
       `<spec_sources>`,
       `- Development log: \`${specsDir}/TDD-OUTPUT.json\` or \`git status -s\` to list all modified files in each project.`,
+      ...tddSummary,
+      ...this.buildSpecificationProvenance(specsDir),
       `<development_handoff>`,
       payload.developerHandoff ?? 'No developer handoff provided.',
       `</development_handoff>`,
       `Treat the developer handoff as navigation context only. Independently verify every claim against code and tests.`,
-      ...inlineOrReference('problem_space', payload.specsContent?.problemSpace, join(specsDir, '001-problem-space.md'), 'markdown'),
-      ...inlineOrReference('context_map', payload.specsContent?.contextMap, join(specsDir, '002-context-map.md'), 'markdown'),
-      ...inlineOrReference('tactical_design', payload.specsContent?.tacticalDesign, join(specsDir, '003-*-tactical-design.md'), 'markdown', 'always'),
-      ...inlineOrReference('test_scenarios', payload.specsContent?.testScenarios, join(specsDir, '004-*-test-scenarios.md'), 'markdown', 'always'),
+      ...inlineOrReference('problem_space', payload.specsContent?.problemSpace, join(specsDir, '001-problem-space.md'), 'markdown', 'never', context.config.agentRunner),
+      ...inlineOrReference('context_map', payload.specsContent?.contextMap, join(specsDir, '002-context-map.md'), 'markdown', 'never', context.config.agentRunner),
+      ...inlineOrReference('tactical_design', payload.specsContent?.tacticalDesign, join(specsDir, '003-*-tactical-design.md'), 'markdown', 'always', context.config.agentRunner),
+      ...inlineOrReference('test_scenarios', payload.specsContent?.testScenarios, join(specsDir, '004-*-test-scenarios.md'), 'markdown', 'always', context.config.agentRunner),
       `</spec_sources>`,
       ``,
       `<inputs>`,
-      ...buildDocsOrientationSection(payload.projectPaths, workingDir),
+      ...buildDocsOrientationSection(payload.projectPaths, workingDir, undefined, undefined, context.config.agentRunner),
       `<feature>`,
       `Feature ID: ${payload.featureId}`,
       `Title: ${payload.featureTitle}`,
@@ -441,5 +446,31 @@ export class ReviewHandler extends AbstractPhaseHandler {
       ...reworkSection,
       `</inputs>`,
     ].join('\n')
+  }
+
+  private buildTddSummary(payload: ReviewPayload): string[] {
+    const summary = payload.tddSummary
+    if (!summary) return []
+
+    return [
+      `<tdd_summary>`,
+      `Status: ${summary.status}`,
+      `Tests: ${summary.metrics.totalTests} total, ${summary.metrics.passed} passed, ${summary.metrics.failed} failed`,
+      `Coverage: ${summary.metrics.coverage}`,
+      `Modified files: ${summary.modifiedFiles.length > 0 ? summary.modifiedFiles.join(', ') : 'None reported'}`,
+      `Reworks: ${summary.reworksCount}`,
+      `Developer handoff: ${summary.developerHandoff ?? 'Not provided'}`,
+      `</tdd_summary>`,
+    ]
+  }
+
+  private buildSpecificationProvenance(specsDir: string): string[] {
+    return [
+      `<specification_provenance>`,
+      `- Domain-wide context: \`${join(specsDir, '001-problem-space.md')}\` and \`${join(specsDir, '002-context-map.md')}\`.`,
+      `- Project-specific contracts: files matching \`${join(specsDir, '003-*-tactical-design.md')}\` and \`${join(specsDir, '004-*-test-scenarios.md')}\`.`,
+      `- In concatenated 003/004 content, each \`<!-- File: ... -->\` marker identifies the owning project artifact. Match findings to that artifact and its project path.`,
+      `</specification_provenance>`,
+    ]
   }
 }

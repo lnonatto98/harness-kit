@@ -1,7 +1,9 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { join } from 'node:path';
 import { PlanningHandler } from '../PlanningHandler';
 import { Phase } from '../../types';
+import { FORCE_INLINE_MAX } from '../../utils/PromptHelpers';
 
 describe('PlanningHandler', () => {
     let handler: PlanningHandler;
@@ -50,18 +52,22 @@ describe('PlanningHandler', () => {
         // First call to extractTasksFromTacticalDesign returns empty, simulating initial failure
         mockContext.extractTasksFromTacticalDesign.mockReturnValueOnce([]);
 
-        // When invokeAgent is called, it simulates the agent writing to DEVELOPMENT-STATE.md
-        // so that the next call to loadDevelopmentState returns the mock tasks.
-        mockContext.invokeAgent.mockImplementationOnce(async () => {
-            mockFsm.loadDevelopmentState.mockReturnValueOnce(mockTasks.map((t: any) => ({
-                featureId: 'F001',
-                taskId: t.taskId,
-                project: 'project',
-                description: t.description,
-                domain: 'hello_world_cli',
-                currentPhase: '-' as const,
-                status: 'NOT_STARTED' as const,
-            })));
+        // Scope refinement runs first when no feature task provenance exists;
+        // the recovery invocation then simulates the agent writing task rows.
+        let invocationCount = 0;
+        mockContext.invokeAgent.mockImplementation(async () => {
+            invocationCount++;
+            if (invocationCount === 2) {
+                mockFsm.loadDevelopmentState.mockReturnValueOnce(mockTasks.map((t: any) => ({
+                    featureId: 'F001',
+                    taskId: t.taskId,
+                    project: 'project',
+                    description: t.description,
+                    domain: 'hello_world_cli',
+                    currentPhase: '-' as const,
+                    status: 'NOT_STARTED' as const,
+                })));
+            }
             return undefined;
         });
 
@@ -70,7 +76,7 @@ describe('PlanningHandler', () => {
         expect(result).not.toBe(Phase.HALTED);
 
         expect(mockContext.extractTasksFromTacticalDesign).toHaveBeenCalledTimes(1);
-        expect(mockContext.invokeAgent).toHaveBeenCalledTimes(1);
+        expect(mockContext.invokeAgent).toHaveBeenCalledTimes(2);
         // Recovery path: agent writes directly to DEVELOPMENT-STATE.md, appendTasks is not called
         expect(mockFsm.appendTasks).not.toHaveBeenCalled();
     });
@@ -96,6 +102,18 @@ describe('PlanningHandler', () => {
         expect(mockFsm.appendTasks).not.toHaveBeenCalled();
     });
 
+    it('continues from PLANNING and marks the next backlog feature IN_PROGRESS', async () => {
+        mockContext.config = { ...mockContext.config, enableRefinement: true };
+        mockFsm.loadDevelopmentState.mockReturnValue([
+            { featureId: 'F001', taskId: 'T001', description: 'Existing Task', domain: 'hello_world_cli', project: 'project', status: 'NOT_STARTED' },
+        ]);
+
+        const result = await handler.handle(Phase.PLANNING, mockContext);
+
+        expect(result).toBe(Phase.DEVELOPMENT);
+        expect(mockFsm.updateFeatureStatus).toHaveBeenCalledWith('F001', 'IN_PROGRESS');
+    });
+
     describe('complexity override in scope-refinement prompt', () => {
         beforeEach(() => {
             mockContext.checkSpecFilesPresent = vi.fn().mockReturnValue(false);
@@ -110,9 +128,18 @@ describe('PlanningHandler', () => {
             await handler.handle(Phase.PLANNING, mockContext);
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
-            expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'LOW'");
-            expect(invokedPrompt).toContain('only the required 003–004 artifacts');
+            expect(invokedPrompt).toContain('Keep analysis concise and produce only the two files listed above.');
+            expect(invokedPrompt).toContain('<expected_outputs>');
+            expect(invokedPrompt).toContain('003-${PROJECT_NAME}-tactical-design.md');
+            expect(invokedPrompt).toContain('004-${PROJECT_NAME}-test-scenarios.md');
+            expect(invokedPrompt).not.toContain('001-problem-space.md');
+            expect(invokedPrompt).not.toContain('002-context-map.md');
+            expect(invokedPrompt).toContain('Before writing any specification, run autonomous refinement');
+            expect(invokedPrompt).not.toContain('all four autonomous document phases');
+            expect(invokedPrompt).toContain('project-scoped Refinement Questions and Answers plus Tactical Design');
+            expect(invokedPrompt).not.toContain('Socratic Questions');
             expect(invokedPrompt).not.toContain('the-grumpy-tech-lead');
+            expect(invokedPrompt).not.toContain("For 'LOW'");
             expect(mockContext.invokeAgent.mock.calls[0][0].phaseKey).toBe('planning');
         });
 
@@ -122,10 +149,12 @@ describe('PlanningHandler', () => {
             await handler.handle(Phase.PLANNING, mockContext);
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
-            expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'HIGH'");
             expect(invokedPrompt).toContain('integrations, failure modes, security boundaries, concurrency, and compatibility risks');
-            expect(invokedPrompt).toContain('Read the generated `001-problem-space.md` and explicitly answer every question from its `Socratic Questions` section');
+            expect(invokedPrompt).toContain('Resolve refinement questions from scope and project evidence');
+            expect(invokedPrompt).toContain('record each answer in every applicable `003-${PROJECT_NAME}-tactical-design.md`');
+            expect(invokedPrompt).not.toContain('Socratic Questions');
             expect(invokedPrompt).not.toContain('the-grumpy-tech-lead');
+            expect(invokedPrompt).not.toContain("For 'HIGH'");
         });
 
         it('uses AUTO complexity evaluation when config.complexity is undefined', async () => {
@@ -134,8 +163,9 @@ describe('PlanningHandler', () => {
             await handler.handle(Phase.PLANNING, mockContext);
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
-            expect(invokedPrompt).toContain('Evaluate scope complexity between \'LOW\' and \'HIGH\'');
-            expect(invokedPrompt).not.toContain('COMPLEXITY OVERRIDE');
+            expect(invokedPrompt).toContain('Evaluate complexity from requirement clarity');
+            expect(invokedPrompt).toContain('Produce only 003–004 artifacts by default.');
+            expect(invokedPrompt).toContain('Produce 001–002 artifacts when <project_paths> contains 2+ projects, or when the scope identifies 3+ distinct integration points spanning 2+ modules and 2+ architectural layers');
         });
 
         it('limits only 001 and 002 output documents to INLINE_THRESHOLD characters', async () => {
@@ -168,6 +198,17 @@ describe('PlanningHandler', () => {
             expect(mockContext.config.scope).toBe('updated scope from SCOPE.md');
         });
 
+        it('references SCOPE.md when an always-inline scope exceeds FORCE_INLINE_MAX', async () => {
+            mockFsm.loadScope.mockReturnValue('a'.repeat(FORCE_INLINE_MAX + 1));
+
+            await handler.handle(Phase.PLANNING, mockContext);
+
+            const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
+            expect(invokedPrompt).toContain('<scope_ref>');
+            expect(invokedPrompt).toContain(`Read file: \`${join(mockContext.workingDir, 'docs', 'product', 'SCOPE.md')}\``);
+            expect(invokedPrompt).not.toContain('<scope>\n```markdown');
+        });
+
         it('throws error if SCOPE.md does not exist', async () => {
             mockFsm.existScope.mockReturnValue(false);
 
@@ -181,15 +222,20 @@ describe('PlanningHandler', () => {
             await expect(handler.handle(Phase.PLANNING, mockContext)).rejects.toThrow('Scope file (SCOPE.md) is empty');
         });
 
-        it('injects refinement_context in prompt when existRefinement is true', async () => {
-            mockFsm.existRefinement = vi.fn().mockReturnValue(true);
-            mockFsm.loadRefinement = vi.fn().mockReturnValue('# Refinement Content\n- Decision 1');
+        it('uses REFINEMENT.md as the exclusive planning source when it exists', async () => {
+            mockFsm.existRefinement.mockReturnValue(true);
+            mockFsm.loadRefinement.mockReturnValue('# Refinement Content\n- Decision 1');
+            mockFsm.loadScope.mockReturnValue('scope content must not be used');
 
             await handler.handle(Phase.PLANNING, mockContext);
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
-            expect(invokedPrompt).toContain('<refinement_context>');
+            expect(mockContext.config.scope).toBe('# Refinement Content\n- Decision 1');
+            expect(invokedPrompt).toContain('<scope>');
             expect(invokedPrompt).toContain('# Refinement Content\n- Decision 1');
+            expect(invokedPrompt).not.toContain('SCOPE.md');
+            expect(invokedPrompt).not.toContain('<refinement_context>');
+            expect(invokedPrompt).not.toContain('scope content must not be used');
         });
     });
 
@@ -258,6 +304,10 @@ describe('PlanningHandler', () => {
             expect(invokeCall.prompt).toContain('<project_paths>');
             expect(invokeCall.prompt).toContain('PROJECT NAME RULE');
             expect(invokeCall.prompt).not.toContain('<scope>');
+            expect(invokeCall.prompt).toContain('<context_anchors>');
+            expect(invokeCall.prompt).toContain('SCOPE.md');
+            expect(invokeCall.prompt).toContain(join(mockContext.workingDir, 'docs', 'specs', 'hello_world_cli'));
+            expect(invokeCall.prompt).toContain('/test/project');
 
             expect(mockContext.setDeveloperSession).toHaveBeenCalledWith({
                 featureId: '',
@@ -267,6 +317,18 @@ describe('PlanningHandler', () => {
             });
         });
 
+        it('uses only REFINEMENT.md in the feature-focused prompt when it exists', async () => {
+            mockFsm.existRefinement.mockReturnValue(true);
+            mockFsm.loadRefinement.mockReturnValue('# Refinement Content\n- Decision 1');
+            mockContext.getDeveloperSession = vi.fn().mockReturnValue({ id: 'PLANNING-SESSION-1' });
+
+            await handler.handle(Phase.PLANNING, mockContext);
+
+            const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
+            expect(invokedPrompt).toContain(`Refinement: ${join(mockContext.workingDir, 'docs', 'product', 'REFINEMENT.md')}`);
+            expect(invokedPrompt).not.toContain('SCOPE.md');
+        });
+
         it('supports buildFeatureScopeRefinementPrompt with LOW complexity override', async () => {
             mockContext.config = { ...mockContext.config, complexity: 'LOW' };
             mockContext.getDeveloperSession.mockReturnValue({ id: 'PREV-SESSION' });
@@ -274,7 +336,12 @@ describe('PlanningHandler', () => {
             await handler.handle(Phase.PLANNING, mockContext);
 
             const invokedPrompt = mockContext.invokeAgent.mock.calls[0][0].prompt as string;
-            expect(invokedPrompt).toContain("COMPLEXITY OVERRIDE: Classify as 'LOW'");
+            expect(invokedPrompt).toContain('Keep analysis concise and produce only the two files listed above.');
+            expect(invokedPrompt).toContain('<expected_outputs>');
+            expect(invokedPrompt).toContain('003-${PROJECT_NAME}-tactical-design.md');
+            expect(invokedPrompt).toContain('004-${PROJECT_NAME}-test-scenarios.md');
+            expect(invokedPrompt).not.toContain('001-problem-space.md');
+            expect(invokedPrompt).not.toContain('002-context-map.md');
             expect(invokedPrompt).toContain('<target_feature>');
             expect(invokedPrompt).toContain('PROJECT NAME RULE');
             expect(invokedPrompt).not.toContain('<scope>');
